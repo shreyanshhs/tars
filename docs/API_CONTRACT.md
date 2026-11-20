@@ -1,4 +1,4 @@
-# TARS — API Contract (v0.2)
+# TARS — API Contract (v0.2.1)
 
 Shared source of truth for **frontend (Windows, Antigravity)** and **backend (Mac, Claude Code)**.
 Base URL: `http://localhost:8000/api`  ·  All bodies JSON  ·  Times are `HH:MM`, days are `MON..FRI`.
@@ -96,6 +96,28 @@ The frontend never uses the USN after login; it only uses `user_id`.
 
 ### GET `/me`
 Same shape as the login response.
+
+### Optional `section` query param (v0.2.1)
+`/timetable`, `/attendance` and `/events` take `?section=`. If omitted, the caller's own section is used.
+If omitted and the caller has no section (faculty/HOD): `/timetable` and `/attendance` → `422`; `/events` computes `clashes_with` against the faculty's own slots (HOD: `[]`).
+
+### GET `/rooms?day=MON&period=3`  (v0.2.1)
+```jsonc
+// response 200: every room, free = no non-cancelled slot in that room at day+period
+[ { "id": "R104", "name": "Room 104 (spare)", "kind": "classroom", "capacity": 60, "free": true } ]
+// kind: classroom | lab | hall
+```
+
+### GET `/today`  (v0.2.1)
+```jsonc
+// response 200
+{ "day": "MON",              // today's weekday; Sat/Sun → MON. Backend may pin it via DEMO_DAY env.
+  "slots": [ /* Slot[] for today: student → own section, faculty → own slots, hod → all */ ],
+  "nudges": [ /* Nudge[] for the caller, newest first */ ] }
+```
+
+### Error body
+All errors use `{ "error": "<code>", "detail": "<text>" }` with codes `unauthorized` (401), `forbidden` (403), `not_found` (404), `validation` (422), `clash` (409).
 
 ### POST `/incidents`
 ```jsonc
