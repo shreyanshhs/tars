@@ -113,6 +113,10 @@ npm run dev
 ```
 Open http://localhost:5173. Set `VITE_USE_MOCK=true` in `frontend/.env` to run without the backend.
 
+If 5173 is busy, Vite picks the next free port (e.g. http://localhost:5176). That's fine: the backend allows
+CORS from **any port** on `http://localhost` and `http://127.0.0.1`. Any other origin (a LAN IP, a deployed URL)
+must be added to `CORS_ORIGINS` in `.env` (comma-separated exact origins; `*` is never allowed), then restart the backend.
+
 ### 4. Environment variables
 Copy `.env.example` to `.env` in the repo root and fill in:
 

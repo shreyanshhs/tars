@@ -8,9 +8,9 @@
 - Tests: `pytest` must pass before each merge to main.
 
 ## Frontend integration requirements (agreed with frontend, do not break)
-Frontend: React + Vite in `tars/frontend/`, dev server http://localhost:5173.
+Frontend: React + Vite in `tars/frontend/`, dev server http://localhost:5173 (Vite may pick another port, e.g. 5176, if 5173 is busy).
 Services: `schedule.ts`, `attendance.ts`, `events.ts`, `nudges.ts`, `admin.ts`, plus `hooks/useStream.ts` (SSE).
-1. CORS: allow origin http://localhost:5173 (and http://127.0.0.1:5173), all methods, headers incl. `X-User-Id`.
+1. CORS: any port on `http://localhost` / `http://127.0.0.1` is allowed via `allow_origin_regex`; all methods, headers incl. `X-User-Id`. Other origins go in `CORS_ORIGINS` (comma-separated exact origins in `.env`). Never allow `*`.
 2. JSON field names EXACTLY as in `docs/API_CONTRACT.md` (v0.2). No renames, no extra wrapping (`{data: ...}`).
 3. Every endpoint declares a Pydantic `response_model`; request bodies are Pydantic models too.
 4. `/openapi.json` must be accurate. Frontend generates TS types with `npx openapi-typescript`. Give models stable names (Slot, Decision, Nudge, Event, User, LoginRequest, Stats).

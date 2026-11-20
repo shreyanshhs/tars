@@ -1,5 +1,6 @@
 """TARS backend: read-only API (contract v0.2.1). Agent, incidents, approvals and SSE come later."""
 import json
+import logging
 import os
 import sqlite3
 from datetime import datetime, timedelta
@@ -26,13 +27,37 @@ from .validator import ClashError
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")  # repo-root .env; fine if missing
 
 app = FastAPI(title="TARS API", version="0.2.1")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# ---------- CORS ----------
+# Any port on localhost / 127.0.0.1 (Vite moves off 5173 when it's busy, e.g. to 5176).
+LOCAL_ORIGIN_REGEX = r"^http://(localhost|127\.0\.0\.1)(:\d{1,5})?$"
+
+
+def parse_cors_origins(raw: Optional[str]) -> list[str]:
+    """CORS_ORIGINS env: comma-separated exact origins. '*' and blanks are ignored (never allow all)."""
+    out = []
+    for o in (raw or "").split(","):
+        o = o.strip().rstrip("/")
+        if not o:
+            continue
+        if "*" in o:
+            logging.getLogger("tars.cors").warning("ignoring wildcard CORS origin %r", o)
+            continue
+        out.append(o)
+    return out
+
+
+def add_cors(target: FastAPI) -> None:
+    target.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=LOCAL_ORIGIN_REGEX,
+        allow_origins=parse_cors_origins(os.environ.get("CORS_ORIGINS")),
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+
+add_cors(app)
 
 # ---------- errors: always {"error", "detail"} ----------
 ERROR_CODES = {401: "unauthorized", 403: "forbidden", 404: "not_found", 409: "clash", 422: "validation"}
