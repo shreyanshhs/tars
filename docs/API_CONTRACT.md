@@ -1,4 +1,4 @@
-# TARS — API Contract (v0.2.1)
+# TARS — API Contract (v0.2.2)
 
 Shared source of truth for **frontend (Windows, Antigravity)** and **backend (Mac, Claude Code)**.
 Base URL: `http://localhost:8000/api`  ·  All bodies JSON  ·  Times are `HH:MM`, days are `MON..FRI`.
@@ -19,7 +19,7 @@ Auth (hackathon-simple, no passwords): log in once with `POST /auth/login`, stor
   "section": "CSE-A",
   "subject_code": "DS",
   "subject_name": "Data Structures",
-  "faculty_id": "F03", "faculty_name": "Dr. Ananya Rao",
+  "faculty_id": "F01", "faculty_name": "<faculty name>",   // live from users.name; can change (PATCH /faculty)
   "room_id": "R102",
   "status": "scheduled"        // scheduled | replanned | cancelled
 }
@@ -29,7 +29,7 @@ Auth (hackathon-simple, no passwords): log in once with `POST /auth/login`, stor
   "id": 7,
   "created_at": "2026-11-25T10:42:00",
   "trigger": "absence",        // absence | room_unavailable | manual | event_clash
-  "summary": "Moved CSE-A DS (MON P3) to Dr. Kiran (lowest load, free) in R102",
+  "summary": "CSE-A DS (MON P2) reassigned to <faculty name> (lowest load, free) in R101",  // free text, frozen at write time
   "reasoning": "CSE-A attendance in DS is 71% (<75%), so cancel was rejected...",
   "affected_slot_ids": [12],
   "status": "pending_ack"      // proposed | committed | pending_ack | acknowledged | escalated | rejected
@@ -43,7 +43,17 @@ Auth (hackathon-simple, no passwords): log in once with `POST /auth/login`, stor
 { "id": 2, "title": "CyberSec Workshop", "org": "CyberSec Student Chapter",
   "venue": "Main Auditorium", "day": "WED", "start": "14:00", "end": "16:00",
   "clashes_with": [ /* Slot ids for the caller's section */ ] }
+
+// Faculty  (v0.2.2: faculty directory / HOD rename)
+{ "faculty_id": "F08", "name": "<faculty name>",
+  "subjects": ["DS", "MATH"],  // subject codes they can teach
+  "max_load": 18, "load": 5 }  // load = current weekly non-cancelled slots
 ```
+
+**Names are data, not contract (v0.2.2).** All people/room/subject names come from `backend/app/seed_data.json`
+(and HOD renames at runtime). The frontend must never hardcode or match on a name: key everything on ids
+(`user_id`, `faculty_id`, `room_id`, `subject_code`) and display whatever `name` / `faculty_name` the API returns.
+Ids (`S001…`, `F01…F08`, `H01`) are stable.
 
 ---
 
@@ -58,6 +68,8 @@ Auth (hackathon-simple, no passwords): log in once with `POST /auth/login`, stor
 | GET | `/timetable/faculty/{faculty_id}` | all | Faculty's week | Schedule → Faculty tab |
 | GET | `/rooms?day=MON&period=3` | all | Rooms + `free: bool` | Schedule → Rooms tab |
 | GET | `/today` | all | Today's Slots for caller + nudges | Today |
+| GET | `/faculty` | all | Faculty directory (`Faculty[]`, by id) | Schedule → Faculty tab, Admin |
+| PATCH | `/faculty/{faculty_id}` | hod | Rename: body `{ "name": "..." }` → `Faculty` | Admin |
 | GET | `/attendance?section=CSE-A` | all | `[{subject_code, percent}]` | Today → Attendance Matrix |
 | POST | `/incidents` | faculty, hod | Report disruption → starts agent | Admin Console form |
 | GET | `/decisions` | hod | Audit log, newest first | Admin → Audit & Logs |
@@ -76,7 +88,7 @@ Auth (hackathon-simple, no passwords): log in once with `POST /auth/login`, stor
 // response 200
 { "user_id": "S001",                // ← send this as X-User-Id from now on
   "usn": "1AB25CS001",              // null for faculty/HOD
-  "name": "Shreyansh",
+  "name": "<student name>",
   "role": "student",                // student | faculty | hod
   "section": "CSE-A" }              // null for faculty/HOD
 // 404 → { "error": "not_found", "detail": "No user with that USN / staff ID" }
@@ -96,6 +108,19 @@ The frontend never uses the USN after login; it only uses `user_id`.
 
 ### GET `/me`
 Same shape as the login response.
+
+### GET `/faculty`  ·  PATCH `/faculty/{faculty_id}`  (v0.2.2)
+```jsonc
+// GET → 200: Faculty[] ordered by faculty_id
+// PATCH request (hod only): name is trimmed, 1–80 chars
+{ "name": "New Display Name" }
+// PATCH response 200: the updated Faculty
+// errors: 401 · 403 (not hod) · 404 unknown faculty_id · 422 empty/too long
+```
+After a rename the backend emits `timetable_updated` once per section that faculty teaches
+(`slot_ids` = that faculty's slots in the section), to that section + the faculty + HOD.
+Every `Slot.faculty_name`, `/me`, `/auth/demo-users` and `/faculty` reflect the new name immediately.
+Existing Decision `summary`/`reasoning` and Nudge `body` texts are history and keep the old name.
 
 ### Optional `section` query param (v0.2.1)
 `/timetable`, `/attendance` and `/events` take `?section=`. If omitted, the caller's own section is used.

@@ -20,7 +20,7 @@ def create_nudge(con: sqlite3.Connection, user_id: str, kind: str, title: str, b
 
 
 def describe(before: dict, after: dict) -> str:
-    """Human sentence for students, e.g. 'DS on MON at 09:55 is now with Prof. Vikram Joshi, same room.'"""
+    """Human sentence for students, e.g. 'Data Structures on MON at 09:55 is now with <faculty name>, same room.'"""
     subj = after["subject_name"]
     when_before = f"{before['day']} at {before['start']}"
     if after["status"] == "cancelled":

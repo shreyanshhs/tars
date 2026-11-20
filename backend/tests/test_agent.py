@@ -52,8 +52,8 @@ def demo_script(con):
         lambda c: [fc("commit_change", changes=[
             {"slot_id": ds, "faculty_id": c[-3].parts[0].function_response.response["result"]["faculty_id"]},
             {"slot_id": dsl, "faculty_id": last_results(c)["find_substitute"]["faculty_id"]}])],
-        [fc("log_decision", summary="Dr. Ananya Rao absent MON: CSE-A DS → Prof. Vikram Joshi, DSL → Dr. Farah Khan",
-            reasoning="CSE-A DS attendance is 71% (<75%), so cancelling was rejected. Prof. Vikram Joshi teaches DS, "
+        [fc("log_decision", summary="F01 absent MON: CSE-A DS → F08, DSL → F07",
+            reasoning="CSE-A DS attendance is 71% (<75%), so cancelling was rejected. F08 teaches DS, "
                       "is free MON P2 and has the lowest load (5).")],
         [text("Both classes covered.")],
     ]
@@ -85,16 +85,16 @@ def test_demo_f01_absent_ends_with_f08_on_ds(api, db, fake):
     did = r.json()["decision_id"]
 
     ds = next(s for s in tools.get_timetable(section="CSE-A", day="MON", con=db) if s["period"] == 2)
-    assert (ds["faculty_id"], ds["faculty_name"], ds["status"]) == ("F08", "Prof. Vikram Joshi", "replanned")
+    assert (ds["faculty_id"], ds["status"]) == ("F08", "replanned")
     dsl = next(s for s in tools.get_timetable(section="CSE-A", day="MON", con=db) if s["period"] == 1)
-    assert dsl["faculty_id"] == "F07"  # Dr. Farah Khan: teaches DSL, free MON P1
+    assert dsl["faculty_id"] == "F07"  # teaches DSL, free MON P1, lowest load
 
     d = api.get("/api/decisions", headers=H("H01")).json()[0]
     assert d["id"] == did and d["status"] == "pending_ack" and "71%" in d["reasoning"]
     assert sorted(d["affected_slot_ids"]) == sorted([ds["id"], dsl["id"]])
 
     nudges = api.get("/api/nudges", headers=H("S001")).json()
-    assert len(nudges) == 2 and any("Prof. Vikram Joshi" in n["body"] for n in nudges)
+    assert len(nudges) == 2 and all(n["kind"] == "replan" for n in nudges)
     assert api.get("/api/nudges", headers=H("F08")).json()[0]["title"] == "You're covering a class"
     assert api.get("/api/nudges", headers=H("S002")).json() == []
 
@@ -102,7 +102,8 @@ def test_demo_f01_absent_ends_with_f08_on_ds(api, db, fake):
     steps = [m["data"]["step"] for m in bus.recent if m["event"] == "agent_step"]
     assert {"timetable_updated", "nudge_created", "decision_updated"} <= set(events)
     assert steps[0] == "perceive" and steps[-1] == "done" and {"reason", "tool_call", "act"} <= set(steps)
-    assert any("Prof. Vikram Joshi (load 5)" in m["data"]["text"] for m in bus.recent if m["event"] == "agent_step")
+    assert any(m["data"]["text"].startswith("find_substitute(DS, MON P2) -> ") and m["data"]["text"].endswith("(load 5)")
+               for m in bus.recent if m["event"] == "agent_step")
     assert api.get("/api/stats", headers=H("H01")).json()["rescued"] == 1
 
 
@@ -209,7 +210,8 @@ def test_step_text_format(api, db, fake):
     bus.recent.clear()
     api.post("/api/incidents", json=DEMO, headers=H("H01"))
     steps = [(m["data"]["step"], m["data"]["text"]) for m in bus.recent if m["event"] == "agent_step"]
-    assert ("tool_call", "find_substitute(DS, MON P2) -> Prof. Vikram Joshi (load 5)") in steps
+    assert any(s == "tool_call" and t.startswith("find_substitute(DS, MON P2) -> ") and t.endswith("(load 5)")
+               for s, t in steps)
     i = next(i for i, (s, t) in enumerate(steps) if t.startswith("commit_change"))
     assert steps[i + 1][0] == "act"  # act follows its tool_call
 

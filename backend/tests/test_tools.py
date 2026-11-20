@@ -22,7 +22,7 @@ def test_find_free_rooms(db):
 
 def test_find_substitute_demo_returns_f08(db):
     sub = tools.find_substitute("DS", "MON", 2, con=db)
-    assert sub["faculty_id"] == "F08" and sub["name"] == "Prof. Vikram Joshi" and sub["load"] == 5
+    assert sub["faculty_id"] == "F08" and sub["load"] == 5
     assert [c["faculty_id"] for c in sub["candidates"]] == ["F08", "F02"]  # F01 busy (it's her class)
 
 
@@ -66,7 +66,7 @@ def test_commit_substitute_demo(db):
     out = tools.commit_change([{"slot_id": sid, "faculty_id": sub["faculty_id"]}], con=db)
     assert out["ok"] and out["slot_ids"] == [sid] and out["sections"] == ["CSE-A"]
     s = out["slots"][0]
-    assert (s["faculty_id"], s["faculty_name"], s["status"]) == ("F08", "Prof. Vikram Joshi", "replanned")
+    assert (s["faculty_id"], s["status"]) == ("F08", "replanned")
     assert tools.faculty_loads(db)["F08"] == 6
 
 
@@ -107,7 +107,7 @@ def test_commit_reschedule_and_cancel(db):
 
 
 def test_log_decision(db):
-    d = tools.log_decision("absence", "CSE-A DS MON P2 → Prof. Vikram Joshi",
+    d = tools.log_decision("absence", "CSE-A DS MON P2 → F08",
                            "Attendance 71% < 75%, so cancel rejected; F08 free, lowest load.",
                            [23], status="pending_ack", con=db)
     assert set(d) == {"id", "created_at", "trigger", "summary", "reasoning", "affected_slot_ids", "status"}

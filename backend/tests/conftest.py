@@ -41,5 +41,11 @@ def slot_id(con, section, day, period):
                        (section, day, period)).fetchone()[0]
 
 
+def seed_name(user_id):
+    """Name for an id as configured in seed_data.json (tests never hardcode names)."""
+    data = seed.load_data()
+    return {u["id"]: u["name"] for u in data["faculty"] + data["students"] + data["hods"]}[user_id]
+
+
 def H(user_id):
     return {"X-User-Id": user_id}

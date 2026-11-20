@@ -128,10 +128,10 @@ Copy `.env.example` to `.env` in the repo root and fill in:
 ## Demo scenario
 The seed data includes a ready-made scenario:
 
-1. Switch role to **Faculty**, then report **Dr. Ananya Rao (F01)** absent on **Monday**.
+1. Switch role to **Faculty**, then report **F01** absent on **Monday**.
 2. This affects **CSE-A**: DS Lab (P1) and Data Structures (P2).
 3. CSE-A's Data Structures attendance is **71%** (below 75%), so TARS refuses to cancel.
-4. TARS picks **Prof. Vikram Joshi (F08)**: he teaches DS, is free at that time, and has the lowest load.
+4. TARS picks **F08**: they teach DS, are free at that time, and have the lowest load.
 5. The validator confirms there's no clash → the change is saved → the Calendar event is created → the substitute gets a Telegram ping.
 6. No reply within 2 minutes → the HOD is alerted on Telegram.
 7. Switch to **Student**: the grid shows the class as *TARS Re-planned*, with a nudge. Switch to **HOD**: the audit log shows TARS's full reasoning.

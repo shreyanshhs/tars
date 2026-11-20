@@ -18,8 +18,8 @@ from sse_starlette.sse import EventSourceResponse
 from . import actions, agent, bus, tools
 from . import stream as sse
 from .db import DAYS, fetch_slots, get_db, use_db
-from .models import (AttendanceItem, Day, Decision, ErrorResponse, Event, IncidentAccepted,
-                     IncidentRequest, LoginRequest, Nudge, Room, Slot, Stats, Today, User)
+from .models import (AttendanceItem, Day, Decision, ErrorResponse, Event, Faculty, FacultyUpdate,
+                     IncidentAccepted, IncidentRequest, LoginRequest, Nudge, Room, Slot, Stats, Today, User)
 from .validator import ClashError
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")  # repo-root .env; fine if missing
@@ -300,6 +300,40 @@ def read_nudge(nudge_id: int, user: User = Depends(current_user), con: sqlite3.C
     r = con.execute("SELECT id, user_id, kind, title, body, created_at, read FROM nudges WHERE id = ?",
                     (nudge_id,)).fetchone()
     return {**dict(r), "read": bool(r["read"])}
+
+
+# ---------- faculty directory ----------
+def _faculty(con: sqlite3.Connection, faculty_id: Optional[str] = None) -> list[dict]:
+    loads = tools.faculty_loads(con)
+    sql = "SELECT f.id, u.name, f.subjects, f.max_load FROM faculty f JOIN users u ON u.id = f.id"
+    rows = con.execute(sql + (" WHERE f.id = ?" if faculty_id else "") + " ORDER BY f.id",
+                       (faculty_id,) if faculty_id else ())
+    return [{"faculty_id": r["id"], "name": r["name"], "max_load": r["max_load"], "load": loads.get(r["id"], 0),
+             "subjects": [s.strip() for s in r["subjects"].split(",") if s.strip()]} for r in rows]
+
+
+@api.get("/faculty", response_model=list[Faculty], responses=AUTH_ERRORS, tags=["faculty"])
+def list_faculty(_: User = Depends(current_user), con: sqlite3.Connection = Depends(get_db)):
+    return _faculty(con)
+
+
+@api.patch("/faculty/{faculty_id}", response_model=Faculty,
+           responses={**HOD_ERRORS, 404: {"model": ErrorResponse}, 422: {"model": ErrorResponse}}, tags=["faculty"])
+def rename_faculty(faculty_id: str, body: FacultyUpdate, _: User = Depends(require_hod),
+                   con: sqlite3.Connection = Depends(get_db)):
+    """Rename a faculty member. Every Slot's faculty_name follows (it is joined live), so the
+    sections they teach get timetable_updated to refetch."""
+    if not _faculty(con, faculty_id):
+        raise HTTPException(404, f"No faculty with id {faculty_id}")
+    with con:
+        con.execute("UPDATE users SET name = ? WHERE id = ?", (body.name, faculty_id))
+    by_section: dict[str, list[int]] = {}
+    for s in fetch_slots(con, "s.faculty_id = ?", (faculty_id,)):
+        by_section.setdefault(s["section"], []).append(s["id"])
+    for section, ids in sorted(by_section.items()):
+        bus.publish("timetable_updated", {"section": section, "slot_ids": ids},
+                    sections=[section], user_ids=[faculty_id])
+    return _faculty(con, faculty_id)[0]
 
 
 # ---------- live updates ----------

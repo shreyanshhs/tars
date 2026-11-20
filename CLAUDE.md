@@ -12,5 +12,5 @@ Two-person team, two machines:
 - Commit small and often with clear messages.
 
 ## Demo scenario (seeded)
-Dr. Ananya Rao (F01) absent MON → CSE-A DSL (P1) + DS (P2). CSE-A DS attendance 71% (<75%), so no cancel.
-Expected: substitute Prof. Vikram Joshi (F08, DS, lowest load).
+F01 absent MON → CSE-A DSL (P1) + DS (P2). CSE-A DS attendance 71% (<75%), so no cancel.
+Expected: substitute F08 (teaches DS, lowest load). Names live in `backend/app/seed_data.json`; refer to people by id.

@@ -1,7 +1,7 @@
 """Pydantic models. Names and fields are the API contract (docs/API_CONTRACT.md v0.2.1); do not rename."""
 from typing import Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 Day = Literal["MON", "TUE", "WED", "THU", "FRI"]
 Role = Literal["student", "faculty", "hod"]
@@ -89,6 +89,23 @@ class Stats(BaseModel):
     rescued: int
     nudges_acted: int
     avg_response_s: float
+
+
+class Faculty(BaseModel):
+    faculty_id: str
+    name: str
+    subjects: list[str]       # subject codes they can teach
+    max_load: int
+    load: int                 # current weekly non-cancelled slots
+
+
+class FacultyUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def _strip(cls, v):
+        return v.strip() if isinstance(v, str) else v
 
 
 class IncidentRequest(BaseModel):
