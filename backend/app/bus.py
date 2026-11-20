@@ -1,6 +1,6 @@
 """In-process event bus. /stream (SSE) will subscribe; for now events are kept in `recent`.
 
-Each message: {event, data, sections, user_ids, hod}. The stream filters per viewer:
+Each message: {event, data, sections, user_ids, hod, everyone}. The stream filters per viewer:
 student → section in sections or own id in user_ids; faculty → id in user_ids; hod → hod flag.
 """
 import logging
@@ -26,9 +26,9 @@ def unsubscribe(fn: Callable[[dict], None]) -> None:
 
 
 def publish(event: str, data: dict, *, sections: Iterable[str] = (), user_ids: Iterable[str] = (),
-            hod: bool = True) -> None:
+            hod: bool = True, everyone: bool = False) -> None:
     msg = {"event": event, "data": data, "sections": sorted(set(sections)),
-           "user_ids": sorted({u for u in user_ids if u}), "hod": hod}
+           "user_ids": sorted({u for u in user_ids if u}), "hod": hod, "everyone": everyone}
     recent.append(msg)
     with _lock:
         listeners = list(_listeners)

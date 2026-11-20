@@ -5,6 +5,7 @@ Who sees what (docs/API_CONTRACT.md):
   decision_updated  → HOD + reporting faculty
   nudge_created     → that user only
   agent_step        → HOD + reporting faculty
+  demo_reset        → everyone (v0.4)
   ping              → everyone (sent by sse-starlette every PING_SECONDS)
 Publishers put the audience on each message (bus.publish sections/user_ids/hod); this module only filters.
 """
@@ -29,7 +30,7 @@ def ping_event() -> ServerSentEvent:
 
 
 def can_see(user: User, msg: dict) -> bool:
-    if user.user_id in msg["user_ids"]:
+    if msg.get("everyone") or user.user_id in msg["user_ids"]:
         return True
     if user.role == "hod":
         return msg["hod"]

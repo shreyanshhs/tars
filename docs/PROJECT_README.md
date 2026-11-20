@@ -138,6 +138,22 @@ that Telegram is disabled.
 
 ---
 
+## Repeatable demo (reset between runs)
+1. In `.env` set `TARS_DEMO_MODE=1`, then start the backend. Leave it unset outside demos: the reset endpoint then returns 404.
+2. Once: `python3 app/seed.py` (fresh DB), then link the phones on Telegram (`/start`, then `F08`, `F07`, `H01`).
+3. Run the scenario below.
+4. Reset, either with the HOD's **Reset demo** button (shown when `GET /api/meta` returns `demo_mode: true`), or:
+   ```bash
+   curl -X POST http://localhost:8000/api/admin/reset-demo -H "X-User-Id: H01"
+   # {"status":"reset","slots":72}
+   ```
+   This restores the seeded timetable and names, clears incidents, decisions, nudges, RSVPs and pending Telegram
+   confirmations, and cancels escalation timers. Telegram links are kept, so there's no relinking. Every open browser
+   gets a `demo_reset` event and refreshes. Old Accept/Decline buttons from earlier runs stop working.
+5. Repeat from step 3. Only re-run `seed.py` if you edited `seed_data.json`'s structure: it rebuilds the DB and clears Telegram links.
+
+The reset only touches `backend/tars.db`; it never reads or changes `.env`, keys or tokens.
+
 ## Demo scenario
 The seed data includes a ready-made scenario:
 

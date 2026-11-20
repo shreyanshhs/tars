@@ -99,6 +99,50 @@ def main():
     con.close()
 
 
+RESET_TABLES = ("event_rsvps", "ack_requests", "nudges", "decisions", "incidents", "slots", "attendance", "events")
+
+
+def reset_demo(con, data: dict = None) -> int:
+    """Restore the seeded state in place (used by POST /admin/reset-demo). Returns the slot count.
+
+    Clears incidents, decisions, nudges, RSVPs and Telegram ack requests; rebuilds slots, attendance and
+    events from seed_data.json with the same deterministic timetable and ids as a fresh seed. Users,
+    faculty, rooms, subjects and periods are upserted from the JSON, so users.telegram_chat_id (phone
+    links) is kept. Never touches .env or any secret. One transaction: all or nothing.
+    """
+    data = data or load_data()
+    with con:
+        for t in RESET_TABLES:  # children first (foreign keys)
+            con.execute(f"DELETE FROM {t}")
+        # ids restart like a fresh seed (DS demo slot stays 23), EXCEPT ack_requests: old Telegram
+        # buttons ("ack:<id>") from a previous run must not hit a new run's request.
+        restart = tuple(t for t in RESET_TABLES if t != "ack_requests")
+        con.execute(f"DELETE FROM sqlite_sequence WHERE name IN ({','.join('?' * len(restart))})", restart)
+        con.executemany("INSERT INTO periods VALUES (?,?,?) ON CONFLICT(period) DO UPDATE SET start=excluded.start, "
+                        "end=excluded.end", [(p["period"], p["start"], p["end"]) for p in data["periods"]])
+        con.executemany("INSERT INTO subjects VALUES (?,?,?) ON CONFLICT(code) DO UPDATE SET name=excluded.name, "
+                        "is_lab=excluded.is_lab", [(s["code"], s["name"], int(s["is_lab"])) for s in data["subjects"]])
+        con.executemany("INSERT INTO rooms VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, "
+                        "kind=excluded.kind, capacity=excluded.capacity",
+                        [(r["id"], r["name"], r["kind"], r["capacity"]) for r in data["rooms"]])
+        people = ([(f["id"], f["name"], "faculty", None, None) for f in data["faculty"]]
+                  + [(s["id"], s["name"], "student", s["section"], s["usn"]) for s in data["students"]]
+                  + [(h["id"], h["name"], "hod", None, None) for h in data["hods"]])
+        # upsert keeps telegram_chat_id (not in the SET list); seeded names come back if they were renamed
+        con.executemany("INSERT INTO users (id,name,role,section,usn) VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE "
+                        "SET name=excluded.name, role=excluded.role, section=excluded.section, usn=excluded.usn", people)
+        con.executemany("INSERT INTO faculty (id,subjects,max_load) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE "
+                        "SET subjects=excluded.subjects, max_load=excluded.max_load",
+                        [(f["id"], ",".join(f["subjects"]), f.get("max_load", 18)) for f in data["faculty"]])
+        for sec, m in data["attendance"].items():
+            con.executemany("INSERT INTO attendance VALUES (?,?,?)", [(sec, s, v) for s, v in m.items()])
+        con.executemany("INSERT INTO events (title,org,venue,day,start,end) VALUES (?,?,?,?,?,?)",
+                        [(e["title"], e["org"], e["venue"], e["day"], e["start"], e["end"]) for e in data["events"]])
+        con.executemany("INSERT INTO slots (day,period,section,subject_code,faculty_id,room_id) VALUES (?,?,?,?,?,?)",
+                        build_timetable(data))
+    return con.execute("SELECT COUNT(*) FROM slots").fetchone()[0]
+
+
 def short_name(name: str) -> str:
     """'Prof. A B' -> 'Prof. B' for prose; plain names unchanged."""
     parts = name.split()
@@ -161,6 +205,9 @@ def export_mock(con, data: dict):
          "body": f"DS at {at} is now with {sub}, same room.", "created_at": "2026-11-25T10:43:00", "read": False, "snoozed_until": None, "blocked": False},
         {"id": 2, "user_id": student, "kind": "free_slot", "title": "Free slot recommended",
          "body": "You're free 14:40–15:35. DS assignment due tomorrow; block it?", "created_at": "2026-11-25T09:00:00", "read": False, "snoozed_until": None, "blocked": False}], indent=2))
+    (MOCK / "meta.json").write_text(json.dumps({  # v0.4 GET /meta (demo_mode true so the reset button shows)
+        "demo_mode": True, "days": DAYS, "periods": data["periods"],
+        "incident_types": ["absence", "room_unavailable"]}, indent=2))
     (MOCK / "stats.json").write_text(json.dumps({"classes_lost": 0, "rescued": 4, "nudges_acted": 17, "avg_response_s": 38}, indent=2))
 
 

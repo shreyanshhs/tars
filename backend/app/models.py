@@ -131,6 +131,25 @@ class IncidentAccepted(BaseModel):
     status: Literal["agent_running"]
 
 
+class Period(BaseModel):
+    period: int
+    start: str
+    end: str
+
+
+class Meta(BaseModel):
+    """v0.4: static options for forms + whether the demo reset button should show."""
+    demo_mode: bool
+    days: list[Day]
+    periods: list[Period]
+    incident_types: list[Literal["absence", "room_unavailable"]]
+
+
+class ResetResult(BaseModel):
+    status: Literal["reset"]
+    slots: int
+
+
 class ErrorResponse(BaseModel):
     error: str
     detail: str

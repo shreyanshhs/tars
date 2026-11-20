@@ -1674,6 +1674,145 @@
         }
       }
     },
+    "/api/meta": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Meta",
+        "operationId": "meta_api_meta_get",
+        "parameters": [
+          {
+            "name": "X-User-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Meta"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/reset-demo": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Reset Demo",
+        "description": "Restore the seeded timetable; clear incidents/decisions/nudges/RSVPs; cancel escalation timers.\nTelegram links (users.telegram_chat_id) are kept. Only touches the database, never .env.",
+        "operationId": "reset_demo_api_admin_reset_demo_post",
+        "parameters": [
+          {
+            "name": "X-User-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResetResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/stream": {
       "get": {
         "tags": [
@@ -1702,7 +1841,7 @@
         ],
         "responses": {
           "200": {
-            "description": "SSE: timetable_updated, decision_updated, nudge_created, agent_step, ping",
+            "description": "SSE: timetable_updated, decision_updated, nudge_created, agent_step, demo_reset, ping",
             "content": {
               "text/event-stream": {}
             }
@@ -2086,6 +2225,55 @@
         ],
         "title": "LoginRequest"
       },
+      "Meta": {
+        "properties": {
+          "demo_mode": {
+            "type": "boolean",
+            "title": "Demo Mode"
+          },
+          "days": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "MON",
+                "TUE",
+                "WED",
+                "THU",
+                "FRI"
+              ]
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "periods": {
+            "items": {
+              "$ref": "#/components/schemas/Period"
+            },
+            "type": "array",
+            "title": "Periods"
+          },
+          "incident_types": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "absence",
+                "room_unavailable"
+              ]
+            },
+            "type": "array",
+            "title": "Incident Types"
+          }
+        },
+        "type": "object",
+        "required": [
+          "demo_mode",
+          "days",
+          "periods",
+          "incident_types"
+        ],
+        "title": "Meta",
+        "description": "v0.4: static options for forms + whether the demo reset button should show."
+      },
       "Nudge": {
         "properties": {
           "id": {
@@ -2157,6 +2345,48 @@
           "blocked"
         ],
         "title": "Nudge"
+      },
+      "Period": {
+        "properties": {
+          "period": {
+            "type": "integer",
+            "title": "Period"
+          },
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "title": "End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period",
+          "start",
+          "end"
+        ],
+        "title": "Period"
+      },
+      "ResetResult": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "reset",
+            "title": "Status"
+          },
+          "slots": {
+            "type": "integer",
+            "title": "Slots"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "slots"
+        ],
+        "title": "ResetResult"
       },
       "Room": {
         "properties": {

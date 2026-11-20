@@ -21,7 +21,8 @@ from . import actions, agent, bus, notify, tools
 from . import stream as sse
 from .db import DAYS, NUDGE_SELECT, fetch_slots, get_db, iso, now, nudge_dict, use_db
 from .models import (AttendanceItem, Day, Decision, ErrorResponse, Event, Faculty, FacultyUpdate,
-                     IncidentAccepted, IncidentRequest, LoginRequest, Nudge, Room, Slot, SnoozeRequest, Stats,
+                     IncidentAccepted, IncidentRequest, LoginRequest, Meta, Nudge, ResetResult, Room, Slot,
+                     SnoozeRequest, Stats,
                      Today, User)
 from .validator import ClashError
 
@@ -440,10 +441,42 @@ def rename_faculty(faculty_id: str, body: FacultyUpdate, _: User = Depends(requi
     return _faculty(con, faculty_id)[0]
 
 
+# ---------- demo support (v0.4) ----------
+def demo_mode() -> bool:
+    return os.environ.get("TARS_DEMO_MODE", "").strip() == "1"
+
+
+def require_demo_mode() -> None:
+    """Checked before auth: with demo mode off the reset endpoint doesn't exist (404 for everyone)."""
+    if not demo_mode():
+        raise HTTPException(404, "Not Found")
+
+
+@api.get("/meta", response_model=Meta, responses=AUTH_ERRORS, tags=["meta"])
+def meta(_: User = Depends(current_user), con: sqlite3.Connection = Depends(get_db)):
+    return {"demo_mode": demo_mode(), "days": DAYS,
+            "periods": [dict(r) for r in con.execute("SELECT period, start, end FROM periods ORDER BY period")],
+            "incident_types": ["absence", "room_unavailable"]}
+
+
+@api.post("/admin/reset-demo", response_model=ResetResult,
+          responses={**HOD_ERRORS, 404: {"model": ErrorResponse}}, tags=["admin"])
+def reset_demo(_demo: None = Depends(require_demo_mode), _: User = Depends(require_hod),
+               con: sqlite3.Connection = Depends(get_db)):
+    """Restore the seeded timetable; clear incidents/decisions/nudges/RSVPs; cancel escalation timers.
+    Telegram links (users.telegram_chat_id) are kept. Only touches the database, never .env."""
+    from . import seed
+    timers = notify.notifier.cancel_all_escalations()
+    slots = seed.reset_demo(con)
+    logging.getLogger("tars").info("demo reset: %d slots restored, %d escalation timer(s) cancelled", slots, timers)
+    bus.publish("demo_reset", {}, everyone=True)
+    return {"status": "reset", "slots": slots}
+
+
 # ---------- live updates ----------
 @api.get("/stream", response_class=EventSourceResponse, tags=["stream"],
          responses={200: {"content": {"text/event-stream": {}},
-                          "description": "SSE: timetable_updated, decision_updated, nudge_created, agent_step, ping"},
+                          "description": "SSE: timetable_updated, decision_updated, nudge_created, agent_step, demo_reset, ping"},
                      **AUTH_ERRORS})
 async def stream(user_id: Optional[str] = None):
     """EventSource can't send headers, so auth is the `user_id` query param."""

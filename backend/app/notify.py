@@ -216,6 +216,18 @@ class Notifier:
         except Exception:
             pass  # already ran or never scheduled
 
+    def cancel_all_escalations(self) -> int:
+        """Demo reset: drop every pending escalation timer. Returns how many were removed."""
+        if self.scheduler is None:
+            return 0
+        jobs = [j for j in self.scheduler.get_jobs() if j.id.startswith("escalate-")]
+        for j in jobs:
+            try:
+                j.remove()
+            except Exception:
+                pass
+        return len(jobs)
+
     def restore_timers(self) -> None:
         """After a restart: re-arm timers for decisions still waiting on substitutes."""
         with use_db() as con:
