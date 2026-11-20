@@ -1,7 +1,7 @@
 """Telegram notifications (polling bot) + escalation timer.
 
 Flow:
-  /start → bot asks for a login id (USN or staff ID) → users.telegram_chat_id saved.
+  /start → login id → password (passwordless only if TARS_PASSWORDLESS_LOGIN=1) → users.telegram_chat_id saved.
   Agent commits a substitution → each substitute gets the class details with [Accept] [Decline].
     all substitutes Accept           → decision `acknowledged`
     any Decline                       → decision `escalated` + HOD alerted
@@ -17,10 +17,11 @@ import asyncio
 import json
 import logging
 import os
+import time
 from datetime import datetime, timedelta
 from typing import Callable, Optional
 
-from . import bus, tools
+from . import auth, bus, tools
 from .db import fetch_slots, iso, now, use_db
 
 log = logging.getLogger("tars.notify")
@@ -30,6 +31,9 @@ Sender = Callable[[str, str, Optional[list]], Optional[int]]
 
 START_TEXT = ("Hi, I'm TARS, your campus scheduling assistant.\n"
               "Reply with your login id: your USN (e.g. 1AB25CS001) or staff ID (e.g. F08, H01).")
+PASSWORD_TEXT = "Now send your password. I'll delete that message as soon as I've read it."
+NOT_STARTED_TEXT = "Send /start to link this chat to your TARS account."
+LINK_FLOW_SECONDS = 300  # an unfinished /start expires after 5 min
 
 
 def escalation_minutes() -> float:
@@ -57,6 +61,7 @@ class Notifier:
         self.app = None        # telegram.ext.Application when polling
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.scheduler = None  # APScheduler BackgroundScheduler
+        self._flows: dict[str, dict] = {}  # chat_id -> /start progress (login id, then password)
 
     @property
     def enabled(self) -> bool:
@@ -145,18 +150,39 @@ class Notifier:
             log.warning("No HOD has linked Telegram; escalation alert not delivered: %s", text.splitlines()[0])
         return sum(self.send(c, text) is not None for c in chats)
 
-    # ---------- linking ----------
-    def link(self, login_id: str, chat_id) -> str:
-        lid = (login_id or "").strip().upper()
+    # ---------- linking: /start → login id → password (same rules as the web login) ----------
+    def link(self, login_id: str, password: Optional[str], chat_id) -> str:
         with use_db() as con:
-            r = con.execute("SELECT id, name, role FROM users WHERE UPPER(usn) = ? OR UPPER(id) = ?",
-                            (lid, lid)).fetchone()
-            if r is None:
-                return "No user with that USN / staff ID. Try again (e.g. 1AB25CS001, F08, H01)."
+            try:
+                r = auth.authenticate(con, login_id, password)
+            except auth.AuthError:
+                return "Wrong login id or password. Send /start to try again."
             with con:
                 con.execute("UPDATE users SET telegram_chat_id = ? WHERE id = ?", (str(chat_id), r["id"]))
         log.info("Telegram chat linked to %s", r["id"])
         return f"Linked to {r['name']} ({r['id']}, {r['role']}). TARS will message you here."
+
+    def start_flow(self, chat_id, arg: Optional[str] = None) -> str:
+        """/start, or /start <login id> (deep link)."""
+        self._flows[str(chat_id)] = {"stage": "id", "at": time.time()}
+        return self.handle_text(chat_id, arg)[0] if arg else START_TEXT
+
+    def handle_text(self, chat_id, text: Optional[str]) -> tuple[str, bool]:
+        """A plain message in the link flow. Returns (reply, delete_users_message)."""
+        key = str(chat_id)
+        flow = self._flows.get(key)
+        if flow is None or time.time() - flow["at"] > LINK_FLOW_SECONDS:
+            self._flows.pop(key, None)
+            return NOT_STARTED_TEXT, False
+        if flow["stage"] == "id":
+            login_id = (text or "").strip()
+            if auth.passwordless_enabled():
+                self._flows.pop(key, None)
+                return self.link(login_id, None, chat_id), False
+            self._flows[key] = {"stage": "password", "login_id": login_id, "at": time.time()}
+            return PASSWORD_TEXT, False
+        self._flows.pop(key, None)  # password stage: one attempt, then /start again
+        return self.link(flow["login_id"], text or "", chat_id), True
 
     # ---------- ack requests ----------
     def request_acks(self, decision_id: int, slot_ids: list[int], con=None) -> list[dict]:
@@ -328,13 +354,19 @@ class Notifier:
 
     # ---------- Telegram handlers (thin async wrappers) ----------
     async def _on_start(self, update, context) -> None:
-        chat = update.effective_chat.id
-        text = (await asyncio.to_thread(self.link, context.args[0], chat)) if context.args else START_TEXT
+        arg = context.args[0] if context.args else None
+        text = await asyncio.to_thread(self.start_flow, update.effective_chat.id, arg)
         await update.effective_message.reply_text(text)
 
     async def _on_text(self, update, context) -> None:
-        text = await asyncio.to_thread(self.link, update.effective_message.text, update.effective_chat.id)
-        await update.effective_message.reply_text(text)
+        reply, delete = await asyncio.to_thread(self.handle_text, update.effective_chat.id,
+                                                update.effective_message.text)
+        if delete:  # it was a password: don't leave it in the chat history
+            try:
+                await update.effective_message.delete()
+            except Exception:
+                log.warning("could not delete the password message in chat %s", update.effective_chat.id)
+        await update.effective_message.reply_text(reply)
 
     async def _on_button(self, update, context) -> None:
         q = update.callback_query

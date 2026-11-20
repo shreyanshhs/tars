@@ -66,9 +66,10 @@ def test_hod_sees_everything_except_other_peoples_nudges(demo_messages):
     assert sum(m["event"] == "agent_step" for m in seen) == n_steps
 
 
-def test_stream_auth(client):
-    r = client.get("/api/stream?user_id=X99")
-    assert r.status_code == 401 and r.json() == {"error": "unauthorized", "detail": "Unknown user id"}
+def test_stream_rejects_user_id_param(client):
+    # v0.5: ?user_id= is gone; without a ticket the stream is closed even for a real user id
+    r = client.get("/api/stream?user_id=H01")
+    assert r.status_code == 401 and r.json() == {"error": "unauthorized", "detail": "Missing stream ticket"}
     assert client.get("/api/stream").status_code == 401
 
 
@@ -122,7 +123,8 @@ def test_live_stream_end_to_end(server):
     bus.recent.clear()
     who = ["S001", "S002", "H01", "F08"]
     with ThreadPoolExecutor(len(who)) as ex:
-        futures = {u: ex.submit(collect, f"{server}/stream?user_id={u}", 3) for u in who}
+        tickets = {u: httpx.post(f"{server}/auth/stream-ticket", headers=H(u)).json()["ticket"] for u in who}
+        futures = {u: ex.submit(collect, f"{server}/stream?ticket={tickets[u]}", 3) for u in who}
         wait_for(lambda: len(bus._listeners) == len(who))  # all subscribed before the incident
         r = httpx.post(f"{server}/incidents", json=DEMO, headers=H("H01"), timeout=10)
         assert r.status_code == 202

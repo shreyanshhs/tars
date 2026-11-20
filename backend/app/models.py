@@ -9,6 +9,7 @@ Role = Literal["student", "faculty", "hod"]
 
 class LoginRequest(BaseModel):
     login_id: str
+    password: Optional[str] = None   # v0.5: required unless the backend runs with TARS_PASSWORDLESS_LOGIN=1
 
 
 class User(BaseModel):
@@ -17,6 +18,20 @@ class User(BaseModel):
     name: str
     role: Role
     section: Optional[str] = None
+
+
+class LoginResponse(BaseModel):
+    """v0.5: send `Authorization: Bearer <token>` on every request."""
+    token: str
+    token_type: Literal["bearer"]
+    expires_at: str                  # ISO 8601 UTC, e.g. "2026-11-25T22:42:00Z"
+    user: "User"
+
+
+class StreamTicket(BaseModel):
+    """v0.5: single-use, 60 s. Open EventSource(`/api/stream?ticket=${ticket}`) right away."""
+    ticket: str
+    expires_at: str
 
 
 class Slot(BaseModel):

@@ -118,7 +118,27 @@ CORS from **any port** on `http://localhost` and `http://127.0.0.1`. Any other o
 must be added to `CORS_ORIGINS` in `.env` (comma-separated exact origins; `*` is never allowed), then restart the backend.
 
 ### 4. Environment variables
-Copy `.env.example` to `.env` in the repo root and fill in:
+The `.env` file goes in the **repo root**, next to `.env.example` (not in `backend/` or `frontend/`):
+```
+tars/
+├── .env.example
+├── .env          ← you create this
+├── backend/
+└── frontend/
+```
+macOS / Linux: `cp .env.example .env`
+
+**Windows (PowerShell), from the repo root:**
+```powershell
+Copy-Item .env.example .env
+notepad .env
+```
+> ⚠️ **Windows: Notepad may save it as `.env.txt`**, which the backend won't find. In File Explorer turn on
+> **View → Show → File name extensions** (Windows 11) or **View → File name extensions** (Windows 10), then rename
+> `.env.txt` to `.env`. In Notepad's "Save as" dialog, choose **Save as type: All files** and type the name `.env`.
+> Check in PowerShell: `Get-ChildItem -Force .env*` should list `.env` and `.env.example` only.
+
+Then fill in:
 
 | Variable | Where to get it |
 |---|---|
@@ -127,12 +147,19 @@ Copy `.env.example` to `.env` in the repo root and fill in:
 | `GOOGLE_CALENDAR_ID` | Google Calendar → calendar settings → Calendar ID |
 | `GOOGLE_SERVICE_ACCOUNT_FILE` | Google Cloud → Service Account → JSON key (keep at `backend/service-account.json`) |
 | `ESCALATION_MINUTES` | Minutes before escalating to HOD (use `2` for demos) |
+| `TARS_DEMO_PASSWORD` | Choose one: the login password for **every** seeded user. Applied by `seed.py` and the demo reset. Share it with your team privately, never in the repo. |
+| `TARS_SESSION_SECRET` | Long random string that signs login tokens: `python3 -c "import secrets; print(secrets.token_urlsafe(48))"` (Windows: `py -c ...`). If empty, everyone is logged out whenever the backend restarts. |
+| `TARS_PASSWORDLESS_LOGIN` | Leave empty. `1` allows login without a password (local testing only). |
+| `TARS_DEMO_MODE` | `1` enables the HOD's "Reset demo" (see below). Leave empty otherwise. |
+
+After changing `TARS_DEMO_PASSWORD`, run `python3 app/seed.py` (or the demo reset) so the new password is applied.
+Login is `login id + password` (USN for students, staff ID like `F08`/`H01` for staff).
 
 > ⚠️ `.env` and `service-account*.json` are gitignored. Never commit keys.
 
 **Telegram setup (2 min):** create the bot with @BotFather and put its token (looks like `123456789:AA…`, ~45 chars) in
-`TELEGRAM_BOT_TOKEN`, then start the backend (it polls; no webhook). On each phone, open the bot, send `/start`, and reply
-with your login id (`F08`, `H01`, or a USN). Link the substitute (F08, and F07 for the DS Lab) and the HOD (H01) **after**
+`TELEGRAM_BOT_TOKEN`, then start the backend (it polls; no webhook). On each phone, open the bot, send `/start`, reply
+with your login id (`F08`, `H01`, or a USN), then with the password (the bot deletes that message). Link the substitute (F08, and F07 for the DS Lab) and the HOD (H01) **after**
 the final `python3 app/seed.py`, because reseeding clears the links. Without a token the backend runs normally and logs
 that Telegram is disabled.
 
@@ -140,11 +167,14 @@ that Telegram is disabled.
 
 ## Repeatable demo (reset between runs)
 1. In `.env` set `TARS_DEMO_MODE=1`, then start the backend. Leave it unset outside demos: the reset endpoint then returns 404.
-2. Once: `python3 app/seed.py` (fresh DB), then link the phones on Telegram (`/start`, then `F08`, `F07`, `H01`).
+2. Once: `python3 app/seed.py` (fresh DB, applies `TARS_DEMO_PASSWORD`), then link the phones on Telegram
+   (`/start` → `F08` → password; same for `F07` and `H01`).
 3. Run the scenario below.
 4. Reset, either with the HOD's **Reset demo** button (shown when `GET /api/meta` returns `demo_mode: true`), or:
    ```bash
-   curl -X POST http://localhost:8000/api/admin/reset-demo -H "X-User-Id: H01"
+   TOKEN=$(curl -s -X POST http://localhost:8000/api/auth/login -H "Content-Type: application/json" \
+     -d '{"login_id":"H01","password":"<your TARS_DEMO_PASSWORD>"}' | python3 -c "import json,sys;print(json.load(sys.stdin)['token'])")
+   curl -X POST http://localhost:8000/api/admin/reset-demo -H "Authorization: Bearer $TOKEN"
    # {"status":"reset","slots":72}
    ```
    This restores the seeded timetable and names, clears incidents, decisions, nudges, RSVPs and pending Telegram
@@ -152,7 +182,8 @@ that Telegram is disabled.
    gets a `demo_reset` event and refreshes. Old Accept/Decline buttons from earlier runs stop working.
 5. Repeat from step 3. Only re-run `seed.py` if you edited `seed_data.json`'s structure: it rebuilds the DB and clears Telegram links.
 
-The reset only touches `backend/tars.db`; it never reads or changes `.env`, keys or tokens.
+The reset only touches `backend/tars.db`. It never writes `.env`; the only setting it uses is `TARS_DEMO_PASSWORD`
+(already loaded at startup) to re-apply passwords. If that is empty, existing passwords are kept, so nobody is locked out.
 
 ## Demo scenario
 The seed data includes a ready-made scenario:

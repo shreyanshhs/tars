@@ -3,11 +3,48 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
-import app.main  # noqa: F401  (loads .env first)
-from app import seed
+from typing import Optional
 
-# Tests must never poll or message the real Telegram bot: blank the token that .env just loaded.
+from fastapi import Header, HTTPException
+
+import app.main as main_module  # loads .env first
+from app import auth, seed
+
+# Tests must never poll or message the real Telegram bot, nor see the real demo password / session
+# secret / passwordless flag from .env: blank them after .env was loaded.
 os.environ["TELEGRAM_BOT_TOKEN"] = ""
+os.environ["TARS_DEMO_PASSWORD"] = ""
+os.environ["TARS_PASSWORDLESS_LOGIN"] = ""
+os.environ["TARS_SESSION_SECRET"] = "test-secret-" + "x" * 32
+auth.PBKDF2_ITERATIONS = 1_000  # fast hashes in tests; real runs use the default (stored per hash)
+
+
+def _test_current_user(x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+    """TEST-ONLY identity: installed via app.dependency_overrides below, never in the app itself.
+    Lets the behaviour tests say H("S001") instead of logging in. Real token auth is tested in
+    test_auth.py, which removes this override (see the `real_auth` fixture)."""
+    from app.db import use_db
+    from app.models import User
+    if not x_user_id:
+        raise HTTPException(401, "Missing test identity")
+    with use_db() as con:
+        row = con.execute(f"{main_module.USER_SELECT} WHERE id = ?", (x_user_id,)).fetchone()
+    if row is None:
+        raise HTTPException(401, "Unknown user id")
+    return User(**dict(row))
+
+
+main_module.app.dependency_overrides[main_module.current_user] = _test_current_user
+
+
+@pytest.fixture
+def real_auth():
+    """Remove the test identity override: requests must carry a real Bearer token."""
+    overrides = main_module.app.dependency_overrides
+    saved = overrides.pop(main_module.current_user, None)
+    yield
+    if saved is not None:
+        overrides[main_module.current_user] = saved
 
 
 @pytest.fixture(scope="session")

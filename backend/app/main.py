@@ -4,7 +4,7 @@ import logging
 import os
 import sqlite3
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -13,16 +13,17 @@ from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, Header, HTTPEx
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from sse_starlette.sse import EventSourceResponse
 
-from . import actions, agent, bus, notify, tools
+from . import actions, agent, auth, bus, notify, tools
 from . import stream as sse
 from .db import DAYS, NUDGE_SELECT, fetch_slots, get_db, iso, now, nudge_dict, use_db
 from .models import (AttendanceItem, Day, Decision, ErrorResponse, Event, Faculty, FacultyUpdate,
-                     IncidentAccepted, IncidentRequest, LoginRequest, Meta, Nudge, ResetResult, Room, Slot,
-                     SnoozeRequest, Stats,
+                     IncidentAccepted, IncidentRequest, LoginRequest, LoginResponse, Meta, Nudge, ResetResult, Room, Slot,
+                     SnoozeRequest, Stats, StreamTicket,
                      Today, User)
 from .validator import ClashError
 
@@ -97,18 +98,34 @@ async def validation_error(_: Request, exc: RequestValidationError):
 AUTH_ERRORS = {401: {"model": ErrorResponse}}
 HOD_ERRORS = {401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}}
 
-# ---------- auth ----------
+# ---------- auth (v0.5): identity and role come ONLY from a verified signed token ----------
 USER_SELECT = "SELECT id AS user_id, usn, name, role, section FROM users"
+bearer = HTTPBearer(auto_error=False, description="Session token from POST /api/auth/login")
 
 
-def current_user(x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
-                 con: sqlite3.Connection = Depends(get_db)) -> User:
-    if not x_user_id:
-        raise HTTPException(401, "Missing X-User-Id header")
-    row = con.execute(f"{USER_SELECT} WHERE id = ?", (x_user_id.strip(),)).fetchone()
+def unauthorized(detail: str, code: str = "unauthorized") -> HTTPException:
+    return HTTPException(401, {"error": code, "detail": detail}, headers={"WWW-Authenticate": "Bearer"})
+
+
+def user_from_claims(con: sqlite3.Connection, claims: dict) -> User:
+    """sub/role/section from the verified token; the DB only supplies display fields (name, usn)
+    and rejects tokens of users that no longer exist."""
+    row = con.execute("SELECT name, usn FROM users WHERE id = ?", (claims["sub"],)).fetchone()
     if row is None:
-        raise HTTPException(401, "Unknown user id")
-    return User(**dict(row))
+        raise unauthorized("Unknown user")
+    return User(user_id=claims["sub"], role=claims["role"], section=claims.get("section"),
+                name=row["name"], usn=row["usn"])
+
+
+def current_user(creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer),
+                 con: sqlite3.Connection = Depends(get_db)) -> User:
+    if creds is None or not creds.credentials:
+        raise unauthorized("Missing bearer token")
+    try:
+        claims = auth.verify_session(creds.credentials)
+    except auth.AuthError as e:
+        raise unauthorized(e.detail)
+    return user_from_claims(con, claims)
 
 
 def require_roles(*roles: str):
@@ -133,13 +150,27 @@ def resolve_section(section: Optional[str], user: User) -> str:
 api = APIRouter(prefix="/api")
 
 
-@api.post("/auth/login", response_model=User, responses={404: {"model": ErrorResponse}}, tags=["auth"])
+def _utc_iso(epoch: int) -> str:
+    return datetime.fromtimestamp(epoch, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+@api.post("/auth/login", response_model=LoginResponse, responses={401: {"model": ErrorResponse}}, tags=["auth"])
 def login(body: LoginRequest, con: sqlite3.Connection = Depends(get_db)):
-    lid = body.login_id.strip().upper()
-    row = con.execute(f"{USER_SELECT} WHERE UPPER(usn) = ? OR UPPER(id) = ?", (lid, lid)).fetchone()
-    if row is None:
-        raise HTTPException(404, "No user with that USN / staff ID")
-    return dict(row)
+    """Password login. Passwordless (no/empty password) only when TARS_PASSWORDLESS_LOGIN=1."""
+    try:
+        row = auth.authenticate(con, body.login_id, body.password)
+    except auth.AuthError as e:
+        raise unauthorized(e.detail, e.code)
+    token, exp = auth.issue_session(row)
+    user = User(user_id=row["id"], usn=row["usn"], name=row["name"], role=row["role"], section=row["section"])
+    return {"token": token, "token_type": "bearer", "expires_at": _utc_iso(exp), "user": user}
+
+
+@api.post("/auth/stream-ticket", response_model=StreamTicket, responses=AUTH_ERRORS, tags=["auth"])
+def stream_ticket(user: User = Depends(current_user)):
+    """Short-lived (60 s), single-use ticket for GET /stream?ticket=… (EventSource can't send headers)."""
+    ticket, exp = auth.issue_stream_ticket({"sub": user.user_id, "role": user.role, "section": user.section})
+    return {"ticket": ticket, "expires_at": _utc_iso(exp)}
 
 
 @api.get("/auth/demo-users", response_model=list[User], tags=["auth"])
@@ -478,15 +509,17 @@ def reset_demo(_demo: None = Depends(require_demo_mode), _: User = Depends(requi
          responses={200: {"content": {"text/event-stream": {}},
                           "description": "SSE: timetable_updated, decision_updated, nudge_created, agent_step, demo_reset, ping"},
                      **AUTH_ERRORS})
-async def stream(user_id: Optional[str] = None):
-    """EventSource can't send headers, so auth is the `user_id` query param."""
-    if not user_id:
-        raise HTTPException(401, "Missing user_id query param")
+async def stream(ticket: Optional[str] = None):
+    """EventSource can't send headers: authenticate with a single-use ticket from POST /auth/stream-ticket."""
+    if not ticket:
+        raise unauthorized("Missing stream ticket")
+    try:
+        claims = auth.redeem_stream_ticket(ticket)
+    except auth.AuthError as e:
+        raise unauthorized(e.detail)
     with use_db() as con:
-        row = con.execute(f"{USER_SELECT} WHERE id = ?", (user_id.strip(),)).fetchone()
-    if row is None:
-        raise HTTPException(401, "Unknown user id")
-    return EventSourceResponse(sse.event_stream(User(**dict(row))), ping=sse.PING_SECONDS,
+        user = user_from_claims(con, claims)
+    return EventSourceResponse(sse.event_stream(user), ping=sse.PING_SECONDS,
                                ping_message_factory=sse.ping_event)
 
 

@@ -79,11 +79,13 @@ def test_names_come_from_seed_data_json(tmp_path, monkeypatch):
     monkeypatch.setattr(seed, "DB", tmp_path / "tars.db")
     monkeypatch.setattr(seed, "MOCK", tmp_path / "mock")
     monkeypatch.setenv("TARS_DB", str(tmp_path / "tars.db"))
+    monkeypatch.setenv("TARS_DEMO_PASSWORD", "pw-for-tests")
     seed.main()
 
     from app.main import app
     api = TestClient(app)
-    assert api.post("/api/auth/login", json={"login_id": "1AB25CS001"}).json()["name"] == "Edited Student"
+    login = api.post("/api/auth/login", json={"login_id": "1AB25CS001", "password": "pw-for-tests"}).json()
+    assert login["user"]["name"] == "Edited Student"
     assert next(f for f in api.get("/api/faculty", headers=H("H01")).json() if f["faculty_id"] == "F08")["name"] \
         == "Prof. Edited Injson"
     mock = tmp_path / "mock"

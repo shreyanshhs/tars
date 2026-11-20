@@ -1,23 +1,10 @@
-from conftest import H, seed_name
+from conftest import H
 
 SLOT_KEYS = {"id", "day", "period", "start", "end", "section", "subject_code", "subject_name",
              "faculty_id", "faculty_name", "room_id", "status"}
 
 
-def test_login_student_by_usn_case_insensitive(client):
-    r = client.post("/api/auth/login", json={"login_id": "  1ab25cs001 "})
-    assert r.status_code == 200
-    body = r.json()
-    assert {k: body[k] for k in ("user_id", "usn", "role", "section")} == {
-        "user_id": "S001", "usn": "1AB25CS001", "role": "student", "section": "CSE-A"}
-    assert body["name"] == seed_name("S001")  # name comes from seed_data.json, not code
-
-
-def test_login_staff_and_unknown(client):
-    assert client.post("/api/auth/login", json={"login_id": "f08"}).json()["role"] == "faculty"
-    assert client.post("/api/auth/login", json={"login_id": "H01"}).json()["role"] == "hod"
-    r = client.post("/api/auth/login", json={"login_id": "nope"})
-    assert r.status_code == 404 and r.json()["error"] == "not_found"
+# login / token tests live in test_auth.py (v0.5)
 
 
 def test_demo_users(client):

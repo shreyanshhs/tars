@@ -49,8 +49,11 @@ def api(db):
 
 
 def link_all(n, who=("F07", "F08", "H01")):
-    for uid in who:
-        n.link(uid.lower() + " ", CHAT[uid])
+    """Simulate phones that already finished /start (the flow itself is tested below)."""
+    from app.db import use_db
+    with use_db() as con, con:
+        for uid in who:
+            con.execute("UPDATE users SET telegram_chat_id = ? WHERE id = ?", (CHAT[uid], uid))
 
 
 def run_demo(api):
@@ -76,14 +79,59 @@ def press(n, uid, rid, accept=True):
     return n.handle_button(CHAT[uid], f"{'ack' if accept else 'dec'}:{rid}")
 
 
-# ---------- linking ----------
-def test_link_by_staff_id_or_usn(tg, db):
+# ---------- linking: /start → login id → password ----------
+def linked(db):
+    return dict(db.execute("SELECT id, telegram_chat_id FROM users WHERE telegram_chat_id IS NOT NULL").fetchall())
+
+
+@pytest.fixture
+def demo_password(db, monkeypatch):
+    from app import seed
+    monkeypatch.setenv("TARS_DEMO_PASSWORD", "pw-for-tests")
+    seed.apply_demo_password(db, keep_if_unset=False)
+    db.commit()
+    return "pw-for-tests"
+
+
+def test_start_asks_for_id_then_password(tg, db, demo_password):
     _, n = tg
-    assert "F08" in n.link(" f08 ", "800")
-    assert "S001" in n.link("1ab25cs001", "555")
-    assert "No user" in n.link("nobody", "1")
-    got = dict(db.execute("SELECT id, telegram_chat_id FROM users WHERE telegram_chat_id IS NOT NULL").fetchall())
-    assert got == {"F08": "800", "S001": "555"}
+    assert "login id" in n.start_flow("800")
+    reply, delete = n.handle_text("800", " f08 ")
+    assert "password" in reply.lower() and delete is False and linked(db) == {}
+    reply, delete = n.handle_text("800", demo_password)
+    assert "Linked to" in reply and "F08" in reply and delete is True       # password message gets deleted
+    assert linked(db) == {"F08": "800"}
+    assert "password" in n.start_flow("555", "1ab25cs001").lower()           # /start <usn> deep link
+    assert "Linked to" in n.handle_text("555", demo_password)[0] and linked(db)["S001"] == "555"
+
+
+def test_start_wrong_password_or_unknown_id(tg, db, demo_password):
+    _, n = tg
+    n.start_flow("800"); n.handle_text("800", "F08")
+    reply, delete = n.handle_text("800", "wrong")
+    assert "Wrong login id or password" in reply and delete is True and linked(db) == {}
+    assert n.handle_text("800", demo_password)[0].startswith("Send /start")  # one attempt, then restart
+    n.start_flow("800"); n.handle_text("800", "nobody")
+    assert "Wrong login id or password" in n.handle_text("800", demo_password)[0]  # same message: no id probing
+
+
+def test_start_passwordless_only_when_enabled(tg, db, monkeypatch):
+    _, n = tg
+    n.start_flow("800")
+    assert "password" in n.handle_text("800", "F08")[0].lower()              # off by default: asks
+    assert "Wrong" in n.handle_text("800", "")[0] and linked(db) == {}       # no password set → can't link
+    monkeypatch.setenv("TARS_PASSWORDLESS_LOGIN", "1")
+    n.start_flow("800")
+    reply, delete = n.handle_text("800", "F08")
+    assert "Linked to" in reply and delete is False and linked(db) == {"F08": "800"}
+
+
+def test_text_without_start_and_expired_flow(tg, db, demo_password, monkeypatch):
+    _, n = tg
+    assert n.handle_text("800", "F08")[0] == notify.NOT_STARTED_TEXT
+    n.start_flow("800")
+    monkeypatch.setattr(notify, "LINK_FLOW_SECONDS", -1)
+    assert n.handle_text("800", "F08")[0] == notify.NOT_STARTED_TEXT and linked(db) == {}
 
 
 # ---------- commit → message with buttons ----------
@@ -293,17 +341,23 @@ def _update(chat, text=None, data=None):
     return SimpleNamespace(effective_chat=SimpleNamespace(id=chat), effective_message=msg, callback_query=q)
 
 
-def test_handlers(tg, api, db):
+def test_handlers(tg, api, db, demo_password):
     _, n = tg
     u = _update(800)
     asyncio.run(n._on_start(u, SimpleNamespace(args=[])))
     assert "login id" in u.effective_message.reply_text.call_args.args[0]
     u = _update(800, text="F08")
     asyncio.run(n._on_text(u, SimpleNamespace()))
+    assert "password" in u.effective_message.reply_text.call_args.args[0].lower()
+    u = _update(800, text=demo_password)
+    u.effective_message.delete = AsyncMock()
+    asyncio.run(n._on_text(u, SimpleNamespace()))
     assert "Linked to" in u.effective_message.reply_text.call_args.args[0]
+    u.effective_message.delete.assert_awaited_once()                    # password removed from chat
     u = _update(700)
     asyncio.run(n._on_start(u, SimpleNamespace(args=["F07"])))           # /start F07 deep link
-    assert "F07" in u.effective_message.reply_text.call_args.args[0]
+    assert "password" in u.effective_message.reply_text.call_args.args[0].lower()
+    link_all(n, who=("F07",))
 
     did = run_demo(api)
     rid = reqs(db, did)["F08"]["id"]

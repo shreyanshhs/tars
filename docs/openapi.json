@@ -11,6 +11,7 @@
           "auth"
         ],
         "summary": "Login",
+        "description": "Password login. Passwordless (no/empty password) only when TARS_PASSWORDLESS_LOGIN=1.",
         "operationId": "login_api_auth_login_post",
         "requestBody": {
           "content": {
@@ -28,13 +29,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/User"
+                  "$ref": "#/components/schemas/LoginResponse"
                 }
               }
             }
           },
-          "404": {
-            "description": "Not Found",
+          "401": {
+            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
@@ -54,6 +55,43 @@
             }
           }
         }
+      }
+    },
+    "/api/auth/stream-ticket": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Stream Ticket",
+        "description": "Short-lived (60 s), single-use ticket for GET /stream?ticket=… (EventSource can't send headers).",
+        "operationId": "stream_ticket_api_auth_stream_ticket_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamTicket"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/auth/demo-users": {
@@ -88,24 +126,6 @@
         ],
         "summary": "Me",
         "operationId": "me_api_me_get",
-        "parameters": [
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -118,26 +138,21 @@
             }
           },
           "401": {
+            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unauthorized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/timetable": {
@@ -147,6 +162,11 @@
         ],
         "summary": "Timetable",
         "operationId": "timetable_api_timetable_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "section",
@@ -162,22 +182,6 @@
                 }
               ],
               "title": "Section"
-            }
-          },
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
             }
           }
         ],
@@ -226,6 +230,11 @@
         ],
         "summary": "Faculty Timetable",
         "operationId": "faculty_timetable_api_timetable_faculty__faculty_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "faculty_id",
@@ -234,22 +243,6 @@
             "schema": {
               "type": "string",
               "title": "Faculty Id"
-            }
-          },
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
             }
           }
         ],
@@ -308,6 +301,11 @@
         ],
         "summary": "Rooms",
         "operationId": "rooms_api_rooms_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "day",
@@ -334,22 +332,6 @@
               "maximum": 6,
               "minimum": 1,
               "title": "Period"
-            }
-          },
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
             }
           }
         ],
@@ -398,24 +380,6 @@
         ],
         "summary": "Today",
         "operationId": "today_api_today_get",
-        "parameters": [
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -428,26 +392,21 @@
             }
           },
           "401": {
+            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unauthorized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/attendance": {
@@ -457,6 +416,11 @@
         ],
         "summary": "Attendance",
         "operationId": "attendance_api_attendance_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "section",
@@ -472,22 +436,6 @@
                 }
               ],
               "title": "Section"
-            }
-          },
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
             }
           }
         ],
@@ -536,70 +484,47 @@
         ],
         "summary": "Decisions",
         "operationId": "decisions_api_decisions_get",
-        "parameters": [
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/Decision"
                   },
+                  "type": "array",
                   "title": "Response Decisions Api Decisions Get"
                 }
               }
             }
           },
           "401": {
+            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unauthorized"
+            }
           },
           "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/stats": {
@@ -609,24 +534,6 @@
         ],
         "summary": "Stats",
         "operationId": "stats_api_stats_get",
-        "parameters": [
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -639,36 +546,31 @@
             }
           },
           "401": {
+            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unauthorized"
+            }
           },
           "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/nudges": {
@@ -678,60 +580,37 @@
         ],
         "summary": "Nudges",
         "operationId": "nudges_api_nudges_get",
-        "parameters": [
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/Nudge"
                   },
+                  "type": "array",
                   "title": "Response Nudges Api Nudges Get"
                 }
               }
             }
           },
           "401": {
+            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unauthorized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/events": {
@@ -741,6 +620,11 @@
         ],
         "summary": "Events",
         "operationId": "events_api_events_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "section",
@@ -756,22 +640,6 @@
                 }
               ],
               "title": "Section"
-            }
-          },
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
             }
           }
         ],
@@ -821,6 +689,11 @@
         "summary": "Rsvp Event",
         "description": "Idempotent: RSVPing twice is fine.",
         "operationId": "rsvp_event_api_events__event_id__rsvp_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "event_id",
@@ -829,22 +702,6 @@
             "schema": {
               "type": "integer",
               "title": "Event Id"
-            }
-          },
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
             }
           }
         ],
@@ -908,6 +765,11 @@
         "summary": "Unrsvp Event",
         "description": "Idempotent: removing a missing RSVP is fine.",
         "operationId": "unrsvp_event_api_events__event_id__rsvp_delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "event_id",
@@ -916,22 +778,6 @@
             "schema": {
               "type": "integer",
               "title": "Event Id"
-            }
-          },
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
             }
           }
         ],
@@ -996,33 +842,15 @@
         ],
         "summary": "Create Incident",
         "operationId": "create_incident_api_incidents_post",
-        "parameters": [
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
-            }
-          }
-        ],
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/IncidentRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "202": {
@@ -1036,36 +864,41 @@
             }
           },
           "401": {
+            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unauthorized"
+            }
           },
           "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Forbidden"
+            }
           },
           "422": {
+            "description": "Unprocessable Content",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/decisions/{decision_id}/approve": {
@@ -1076,6 +909,11 @@
         "summary": "Approve Decision",
         "description": "proposed (with pending changes) → apply them → committed; pending_ack / escalated → acknowledged.",
         "operationId": "approve_decision_api_decisions__decision_id__approve_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "decision_id",
@@ -1084,22 +922,6 @@
             "schema": {
               "type": "integer",
               "title": "Decision Id"
-            }
-          },
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
             }
           }
         ],
@@ -1175,6 +997,11 @@
         "summary": "Reject Decision",
         "description": "proposed (with pending changes) or escalated → rejected. Nothing is applied.",
         "operationId": "reject_decision_api_decisions__decision_id__reject_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "decision_id",
@@ -1183,22 +1010,6 @@
             "schema": {
               "type": "integer",
               "title": "Decision Id"
-            }
-          },
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
             }
           }
         ],
@@ -1273,6 +1084,11 @@
         ],
         "summary": "Read Nudge",
         "operationId": "read_nudge_api_nudges__nudge_id__read_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "nudge_id",
@@ -1281,22 +1097,6 @@
             "schema": {
               "type": "integer",
               "title": "Nudge Id"
-            }
-          },
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
             }
           }
         ],
@@ -1352,6 +1152,11 @@
         "summary": "Snooze Nudge",
         "description": "Hide from GET /nudges for `minutes` (1..10080). Snoozing again replaces the previous time.",
         "operationId": "snooze_nudge_api_nudges__nudge_id__snooze_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "nudge_id",
@@ -1360,22 +1165,6 @@
             "schema": {
               "type": "integer",
               "title": "Nudge Id"
-            }
-          },
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
             }
           }
         ],
@@ -1441,6 +1230,11 @@
         "summary": "Block Nudge",
         "description": "Hide permanently from GET /nudges (counts as acted on in /stats).",
         "operationId": "block_nudge_api_nudges__nudge_id__block_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "nudge_id",
@@ -1449,22 +1243,6 @@
             "schema": {
               "type": "integer",
               "title": "Nudge Id"
-            }
-          },
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
             }
           }
         ],
@@ -1519,60 +1297,37 @@
         ],
         "summary": "List Faculty",
         "operationId": "list_faculty_api_faculty_get",
-        "parameters": [
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/Faculty"
                   },
+                  "type": "array",
                   "title": "Response List Faculty Api Faculty Get"
                 }
               }
             }
           },
           "401": {
+            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unauthorized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/faculty/{faculty_id}": {
@@ -1583,6 +1338,11 @@
         "summary": "Rename Faculty",
         "description": "Rename a faculty member. Every Slot's faculty_name follows (it is joined live), so the\nsections they teach get timetable_updated to refetch.",
         "operationId": "rename_faculty_api_faculty__faculty_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "faculty_id",
@@ -1591,22 +1351,6 @@
             "schema": {
               "type": "string",
               "title": "Faculty Id"
-            }
-          },
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
             }
           }
         ],
@@ -1681,24 +1425,6 @@
         ],
         "summary": "Meta",
         "operationId": "meta_api_meta_get",
-        "parameters": [
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1711,26 +1437,21 @@
             }
           },
           "401": {
+            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unauthorized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/admin/reset-demo": {
@@ -1741,24 +1462,6 @@
         "summary": "Reset Demo",
         "description": "Restore the seeded timetable; clear incidents/decisions/nudges/RSVPs; cancel escalation timers.\nTelegram links (users.telegram_chat_id) are kept. Only touches the database, never .env.",
         "operationId": "reset_demo_api_admin_reset_demo_post",
-        "parameters": [
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1771,46 +1474,41 @@
             }
           },
           "401": {
+            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unauthorized"
+            }
           },
           "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Forbidden"
+            }
           },
           "404": {
+            "description": "Not Found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/stream": {
@@ -1819,11 +1517,11 @@
           "stream"
         ],
         "summary": "Stream",
-        "description": "EventSource can't send headers, so auth is the `user_id` query param.",
+        "description": "EventSource can't send headers: authenticate with a single-use ticket from POST /auth/stream-ticket.",
         "operationId": "stream_api_stream_get",
         "parameters": [
           {
-            "name": "user_id",
+            "name": "ticket",
             "in": "query",
             "required": false,
             "schema": {
@@ -1835,7 +1533,7 @@
                   "type": "null"
                 }
               ],
-              "title": "User Id"
+              "title": "Ticket"
             }
           }
         ],
@@ -2217,6 +1915,17 @@
           "login_id": {
             "type": "string",
             "title": "Login Id"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
           }
         },
         "type": "object",
@@ -2224,6 +1933,35 @@
           "login_id"
         ],
         "title": "LoginRequest"
+      },
+      "LoginResponse": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "token_type": {
+            "type": "string",
+            "const": "bearer",
+            "title": "Token Type"
+          },
+          "expires_at": {
+            "type": "string",
+            "title": "Expires At"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "token_type",
+          "expires_at",
+          "user"
+        ],
+        "title": "LoginResponse",
+        "description": "v0.5: send `Authorization: Bearer <token>` on every request."
       },
       "Meta": {
         "properties": {
@@ -2549,6 +2287,25 @@
         ],
         "title": "Stats"
       },
+      "StreamTicket": {
+        "properties": {
+          "ticket": {
+            "type": "string",
+            "title": "Ticket"
+          },
+          "expires_at": {
+            "type": "string",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticket",
+          "expires_at"
+        ],
+        "title": "StreamTicket",
+        "description": "v0.5: single-use, 60 s. Open EventSource(`/api/stream?ticket=${ticket}`) right away."
+      },
       "Today": {
         "properties": {
           "day": {
@@ -2674,6 +2431,13 @@
           "type"
         ],
         "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "description": "Session token from POST /api/auth/login",
+        "scheme": "bearer"
       }
     }
   }

@@ -7,7 +7,8 @@ CREATE TABLE users (
   role TEXT NOT NULL CHECK (role IN ('student','faculty','hod')),
   section TEXT,                    -- students only
   usn TEXT UNIQUE,                 -- students only, e.g. 1AB25CS001 (login id)
-  telegram_chat_id TEXT
+  telegram_chat_id TEXT,
+  password_hash TEXT               -- pbkdf2_sha256$iters$salt$hash (from TARS_DEMO_PASSWORD); null = no password
 );
 
 CREATE TABLE faculty (

@@ -2,10 +2,15 @@
 TARS seed: builds tars.db (clash-free timetable) and exports mock JSON for the frontend to docs/mock/.
 All data (names, rooms, subjects, assignments, attendance, events) lives in seed_data.json:
 edit that file, never this one. Run from the repo root:   python3 backend/app/seed.py
-Uses only the Python standard library.
+Standard library only (python-dotenv is used when run as a script, to read TARS_DEMO_PASSWORD).
 """
-import json, random, sqlite3
+import json, os, random, sqlite3
 from pathlib import Path
+
+try:
+    from . import auth          # imported as app.seed
+except ImportError:
+    import auth                 # run as a script: python3 app/seed.py
 
 ROOT = Path(__file__).resolve().parents[2]
 DB = ROOT / "backend" / "tars.db"
@@ -86,6 +91,7 @@ def main():
                     [(e["title"], e["org"], e["venue"], e["day"], e["start"], e["end"]) for e in data["events"]])
     cur.executemany("INSERT INTO slots (day,period,section,subject_code,faculty_id,room_id) VALUES (?,?,?,?,?,?)",
                     build_timetable(data))
+    apply_demo_password(con, keep_if_unset=False)
     con.commit()
     export_mock(con, data)
 
@@ -140,7 +146,22 @@ def reset_demo(con, data: dict = None) -> int:
                         [(e["title"], e["org"], e["venue"], e["day"], e["start"], e["end"]) for e in data["events"]])
         con.executemany("INSERT INTO slots (day,period,section,subject_code,faculty_id,room_id) VALUES (?,?,?,?,?,?)",
                         build_timetable(data))
+        apply_demo_password(con, keep_if_unset=True)
     return con.execute("SELECT COUNT(*) FROM slots").fetchone()[0]
+
+
+def apply_demo_password(con, keep_if_unset: bool) -> bool:
+    """Hash TARS_DEMO_PASSWORD (from .env, never hardcoded) for every user, each with its own salt.
+    Unset: seed leaves users without a password; reset keeps whatever hashes exist."""
+    pw = os.environ.get("TARS_DEMO_PASSWORD", "")
+    if not pw:
+        if not keep_if_unset:
+            print("WARNING: TARS_DEMO_PASSWORD not set: users have no password. Set it in .env and re-run, "
+                  "or enable TARS_PASSWORDLESS_LOGIN=1 for local testing.")
+        return False
+    ids = [r[0] for r in con.execute("SELECT id FROM users")]
+    con.executemany("UPDATE users SET password_hash = ? WHERE id = ?", [(auth.hash_password(pw), i) for i in ids])
+    return True
 
 
 def short_name(name: str) -> str:
@@ -205,6 +226,12 @@ def export_mock(con, data: dict):
          "body": f"DS at {at} is now with {sub}, same room.", "created_at": "2026-11-25T10:43:00", "read": False, "snoozed_until": None, "blocked": False},
         {"id": 2, "user_id": student, "kind": "free_slot", "title": "Free slot recommended",
          "body": "You're free 14:40–15:35. DS assignment due tomorrow; block it?", "created_at": "2026-11-25T09:00:00", "read": False, "snoozed_until": None, "blocked": False}], indent=2))
+    (MOCK / "login.json").write_text(json.dumps({  # v0.5 POST /auth/login (placeholder token, not valid)
+        "token": "mock-token-not-valid", "token_type": "bearer", "expires_at": "2026-11-25T22:42:00Z",
+        "user": {"user_id": me["id"], "usn": me["usn"], "name": me["name"], "role": "student",
+                 "section": me["section"]}}, indent=2))
+    (MOCK / "stream_ticket.json").write_text(json.dumps({  # v0.5 POST /auth/stream-ticket
+        "ticket": "mock-ticket-not-valid", "expires_at": "2026-11-25T10:43:03Z"}, indent=2))
     (MOCK / "meta.json").write_text(json.dumps({  # v0.4 GET /meta (demo_mode true so the reset button shows)
         "demo_mode": True, "days": DAYS, "periods": data["periods"],
         "incident_types": ["absence", "room_unavailable"]}, indent=2))
@@ -212,4 +239,9 @@ def export_mock(con, data: dict):
 
 
 if __name__ == "__main__":
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(ROOT / ".env")   # only to read TARS_DEMO_PASSWORD; nothing is written back
+    except ImportError:
+        pass
     main()
