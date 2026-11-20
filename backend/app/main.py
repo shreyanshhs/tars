@@ -13,8 +13,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from sse_starlette.sse import EventSourceResponse
+
 from . import actions, agent, bus, tools
-from .db import DAYS, fetch_slots, get_db
+from . import stream as sse
+from .db import DAYS, fetch_slots, get_db, use_db
 from .models import (AttendanceItem, Day, Decision, ErrorResponse, Event, IncidentAccepted,
                      IncidentRequest, LoginRequest, Nudge, Room, Slot, Stats, Today, User)
 from .validator import ClashError
@@ -297,6 +300,23 @@ def read_nudge(nudge_id: int, user: User = Depends(current_user), con: sqlite3.C
     r = con.execute("SELECT id, user_id, kind, title, body, created_at, read FROM nudges WHERE id = ?",
                     (nudge_id,)).fetchone()
     return {**dict(r), "read": bool(r["read"])}
+
+
+# ---------- live updates ----------
+@api.get("/stream", response_class=EventSourceResponse, tags=["stream"],
+         responses={200: {"content": {"text/event-stream": {}},
+                          "description": "SSE: timetable_updated, decision_updated, nudge_created, agent_step, ping"},
+                     **AUTH_ERRORS})
+async def stream(user_id: Optional[str] = None):
+    """EventSource can't send headers, so auth is the `user_id` query param."""
+    if not user_id:
+        raise HTTPException(401, "Missing user_id query param")
+    with use_db() as con:
+        row = con.execute(f"{USER_SELECT} WHERE id = ?", (user_id.strip(),)).fetchone()
+    if row is None:
+        raise HTTPException(401, "Unknown user id")
+    return EventSourceResponse(sse.event_stream(User(**dict(row))), ping=sse.PING_SECONDS,
+                               ping_message_factory=sse.ping_event)
 
 
 app.include_router(api)
