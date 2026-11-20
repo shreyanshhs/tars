@@ -2,7 +2,7 @@
 import json
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -17,9 +17,10 @@ from sse_starlette.sse import EventSourceResponse
 
 from . import actions, agent, bus, tools
 from . import stream as sse
-from .db import DAYS, fetch_slots, get_db, use_db
+from .db import DAYS, NUDGE_SELECT, fetch_slots, get_db, iso, now, nudge_dict, use_db
 from .models import (AttendanceItem, Day, Decision, ErrorResponse, Event, Faculty, FacultyUpdate,
-                     IncidentAccepted, IncidentRequest, LoginRequest, Nudge, Room, Slot, Stats, Today, User)
+                     IncidentAccepted, IncidentRequest, LoginRequest, Nudge, Room, Slot, SnoozeRequest, Stats,
+                     Today, User)
 from .validator import ClashError
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")  # repo-root .env; fine if missing
@@ -146,9 +147,11 @@ def today_day() -> str:
 
 
 def user_nudges(con: sqlite3.Connection, user_id: str) -> list[dict]:
-    rows = con.execute("SELECT id, user_id, kind, title, body, created_at, read FROM nudges "
-                       "WHERE user_id = ? ORDER BY created_at DESC, id DESC", (user_id,))
-    return [{**dict(r), "read": bool(r["read"])} for r in rows]
+    """Caller's visible nudges: not blocked, not currently snoozed. Newest first."""
+    rows = con.execute(f"{NUDGE_SELECT} WHERE user_id = ? AND blocked = 0 "
+                       "AND (snoozed_until IS NULL OR snoozed_until <= ?) ORDER BY created_at DESC, id DESC",
+                       (user_id, iso(now())))
+    return [nudge_dict(r) for r in rows]
 
 
 @api.get("/today", response_model=Today, responses=AUTH_ERRORS, tags=["schedule"])
@@ -185,7 +188,7 @@ def stats(_: User = Depends(require_hod), con: sqlite3.Connection = Depends(get_
     return {
         "classes_lost": one("SELECT COUNT(*) FROM slots WHERE status = 'cancelled'"),
         "rescued": one("SELECT COUNT(*) FROM decisions WHERE status IN ('committed','pending_ack','acknowledged')"),
-        "nudges_acted": one("SELECT COUNT(*) FROM nudges WHERE read = 1"),
+        "nudges_acted": one("SELECT COUNT(*) FROM nudges WHERE read = 1 OR blocked = 1"),
         "avg_response_s": 0,  # filled in once the agent records timings
     }
 
@@ -196,9 +199,9 @@ def nudges(user: User = Depends(current_user), con: sqlite3.Connection = Depends
     return user_nudges(con, user.user_id)
 
 
-@api.get("/events", response_model=list[Event], responses=AUTH_ERRORS, tags=["events"])
-def events(section: Optional[str] = None, user: User = Depends(current_user),
-           con: sqlite3.Connection = Depends(get_db)):
+def _events(con: sqlite3.Connection, user: User, section: Optional[str] = None,
+            event_id: Optional[int] = None) -> list[dict]:
+    """Events with clashes_with (vs. the section's / faculty's slots) and the caller's RSVP state."""
     sec = section or user.section
     if sec:
         mine = fetch_slots(con, "s.section = ? AND s.status != 'cancelled'", (sec,))
@@ -206,12 +209,51 @@ def events(section: Optional[str] = None, user: User = Depends(current_user),
         mine = fetch_slots(con, "s.faculty_id = ? AND s.status != 'cancelled'", (user.user_id,))
     else:
         mine = []
+    sql = """SELECT e.id, e.title, e.org, e.venue, e.day, e.start, e.end,
+                    (SELECT COUNT(*) FROM event_rsvps r WHERE r.event_id = e.id) AS rsvp_count,
+                    EXISTS (SELECT 1 FROM event_rsvps r WHERE r.event_id = e.id AND r.user_id = ?) AS rsvp
+             FROM events e""" + (" WHERE e.id = ?" if event_id is not None else "") + " ORDER BY e.id"
     out = []
-    for e in con.execute("SELECT id, title, org, venue, day, start, end FROM events ORDER BY id"):
+    for e in con.execute(sql, (user.user_id, event_id) if event_id is not None else (user.user_id,)):
         clashes = [s["id"] for s in mine
                    if s["day"] == e["day"] and s["start"] < e["end"] and e["start"] < s["end"]]
-        out.append({**dict(e), "clashes_with": clashes})
+        out.append({**dict(e), "rsvp": bool(e["rsvp"]), "clashes_with": clashes})
     return out
+
+
+@api.get("/events", response_model=list[Event], responses=AUTH_ERRORS, tags=["events"])
+def events(section: Optional[str] = None, user: User = Depends(current_user),
+           con: sqlite3.Connection = Depends(get_db)):
+    return _events(con, user, section)
+
+
+require_student = require_roles("student")
+RSVP_ERRORS = {**HOD_ERRORS, 404: {"model": ErrorResponse}}
+
+
+def _event_or_404(con: sqlite3.Connection, user: User, event_id: int) -> dict:
+    ev = _events(con, user, event_id=event_id)
+    if not ev:
+        raise HTTPException(404, f"No event {event_id}")
+    return ev[0]
+
+
+@api.post("/events/{event_id}/rsvp", response_model=Event, responses=RSVP_ERRORS, tags=["events"])
+def rsvp_event(event_id: int, user: User = Depends(require_student), con: sqlite3.Connection = Depends(get_db)):
+    """Idempotent: RSVPing twice is fine."""
+    _event_or_404(con, user, event_id)
+    with con:
+        con.execute("INSERT OR IGNORE INTO event_rsvps (event_id, user_id) VALUES (?, ?)", (event_id, user.user_id))
+    return _event_or_404(con, user, event_id)
+
+
+@api.delete("/events/{event_id}/rsvp", response_model=Event, responses=RSVP_ERRORS, tags=["events"])
+def unrsvp_event(event_id: int, user: User = Depends(require_student), con: sqlite3.Connection = Depends(get_db)):
+    """Idempotent: removing a missing RSVP is fine."""
+    _event_or_404(con, user, event_id)
+    with con:
+        con.execute("DELETE FROM event_rsvps WHERE event_id = ? AND user_id = ?", (event_id, user.user_id))
+    return _event_or_404(con, user, event_id)
 
 
 # ---------- mutations ----------
@@ -290,16 +332,37 @@ def reject_decision(decision_id: int, _: User = Depends(require_hod), con: sqlit
     return d
 
 
-@api.post("/nudges/{nudge_id}/read", response_model=Nudge,
-          responses={**AUTH_ERRORS, 404: {"model": ErrorResponse}}, tags=["nudges"])
-def read_nudge(nudge_id: int, user: User = Depends(current_user), con: sqlite3.Connection = Depends(get_db)):
+NUDGE_ERRORS = {**AUTH_ERRORS, 404: {"model": ErrorResponse}}
+
+
+def _update_own_nudge(con: sqlite3.Connection, user: User, nudge_id: int, set_sql: str, params: tuple) -> dict:
+    """Owner-only update; anyone else (or unknown id) gets 404 so ids don't leak."""
     with con:
-        n = con.execute("UPDATE nudges SET read = 1 WHERE id = ? AND user_id = ?", (nudge_id, user.user_id)).rowcount
+        n = con.execute(f"UPDATE nudges SET {set_sql} WHERE id = ? AND user_id = ?",
+                        (*params, nudge_id, user.user_id)).rowcount
     if not n:
         raise HTTPException(404, f"No nudge {nudge_id} for you")
-    r = con.execute("SELECT id, user_id, kind, title, body, created_at, read FROM nudges WHERE id = ?",
-                    (nudge_id,)).fetchone()
-    return {**dict(r), "read": bool(r["read"])}
+    return nudge_dict(con.execute(f"{NUDGE_SELECT} WHERE id = ?", (nudge_id,)).fetchone())
+
+
+@api.post("/nudges/{nudge_id}/read", response_model=Nudge, responses=NUDGE_ERRORS, tags=["nudges"])
+def read_nudge(nudge_id: int, user: User = Depends(current_user), con: sqlite3.Connection = Depends(get_db)):
+    return _update_own_nudge(con, user, nudge_id, "read = 1", ())
+
+
+@api.post("/nudges/{nudge_id}/snooze", response_model=Nudge, responses={**NUDGE_ERRORS, 422: {"model": ErrorResponse}},
+          tags=["nudges"])
+def snooze_nudge(nudge_id: int, body: SnoozeRequest, user: User = Depends(current_user),
+                 con: sqlite3.Connection = Depends(get_db)):
+    """Hide from GET /nudges for `minutes` (1..10080). Snoozing again replaces the previous time."""
+    until = iso(now() + timedelta(minutes=body.minutes))
+    return _update_own_nudge(con, user, nudge_id, "snoozed_until = ?", (until,))
+
+
+@api.post("/nudges/{nudge_id}/block", response_model=Nudge, responses=NUDGE_ERRORS, tags=["nudges"])
+def block_nudge(nudge_id: int, user: User = Depends(current_user), con: sqlite3.Connection = Depends(get_db)):
+    """Hide permanently from GET /nudges (counts as acted on in /stats)."""
+    return _update_own_nudge(con, user, nudge_id, "blocked = 1", ())
 
 
 # ---------- faculty directory ----------

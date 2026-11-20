@@ -112,10 +112,10 @@ def export_mock(con, data: dict):
     demo = data["demo"]
     absent, sub, student = names[demo["absent_faculty"]], names[demo["substitute"]], demo["student"]
     # the demo class itself (CSE-A DS with the absent faculty), so mock text matches the real timetable
-    ds = con.execute("SELECT s.period, p.start FROM slots s JOIN periods p USING(period) WHERE s.section=? "
+    ds = con.execute("SELECT s.period, p.start, s.id FROM slots s JOIN periods p USING(period) WHERE s.section=? "
                      "AND s.subject_code=? AND s.day=? AND s.faculty_id=?",
                      (demo["section"], demo["subject"], demo["day"], demo["absent_faculty"])).fetchone()
-    when, at = f"{demo['day']} P{ds[0]}", ds[1]  # e.g. "MON P2", "09:55"
+    when, at, ds_id = f"{demo['day']} P{ds[0]}", ds[1], ds[2]  # e.g. "MON P2", "09:55", 23
     q = """SELECT s.id, s.day, s.period, p.start, p.end, s.section, s.subject_code,
                   sub.name AS subject_name, s.faculty_id, u.name AS faculty_name, s.room_id, s.status
            FROM slots s JOIN periods p USING(period) JOIN subjects sub ON sub.code=s.subject_code
@@ -134,16 +134,23 @@ def export_mock(con, data: dict):
     demo_users += [dict(user_id=h["id"], usn=None, name=h["name"], role="hod", section=None) for h in data["hods"]]
     demo_users += [dict(user_id=f["id"], usn=None, name=f["name"], role="faculty", section=None) for f in data["faculty"]]
     (MOCK / "demo_users.json").write_text(json.dumps(demo_users, indent=2))
+    sid = demo["substitute"]
+    step = lambda ts, st, ph, text: {"event": "agent_step", "data": {"decision_id": 1, "step": st, "phase": ph,
+                                                                     "text": text, "ts": f"2026-11-25T10:42:{ts}"}}
     (MOCK / "stream_events.json").write_text(json.dumps([
-        {"event": "agent_step", "data": {"decision_id": 1, "step": "perceive", "text": f"{absent} absent MON: 2 slots affected (CSE-A P1 DSL, P2 DS)", "ts": "2026-11-25T10:42:01"}},
-        {"event": "agent_step", "data": {"decision_id": 1, "step": "tool_call", "text": "get_attendance(CSE-A, DS) -> 71%", "ts": "2026-11-25T10:42:02"}},
-        {"event": "agent_step", "data": {"decision_id": 1, "step": "tool_call", "text": f"find_substitute(DS, {when}) -> {sub} (load 5)", "ts": "2026-11-25T10:42:03"}},
-        {"event": "agent_step", "data": {"decision_id": 1, "step": "act", "text": f"validate_clash OK, committed, Telegram sent to {demo['substitute']}", "ts": "2026-11-25T10:42:04"}},
+        step("01", "perceive", "signal", f"{absent} absent MON: 2 slots affected (CSE-A P1 DSL, P2 DS)"),
+        step("02", "tool_call", "evaluate", "get_attendance(CSE-A, DS) -> 71%"),
+        step("03", "tool_call", "match", f"find_substitute(DS, {when}) -> {sub} (load 5)"),
+        step("03", "reason", "constraints", f"Constraints OK: slot {ds_id}: CSE-A DS attendance 71% < 75%: cancel blocked, {sid} can teach DS"),
+        step("04", "tool_call", "resolve", "validate_clash(1 change(s)) -> OK, no section/faculty/room clash"),
+        step("04", "tool_call", "dispatch", "commit_change(1 change(s)) -> ok"),
+        step("04", "act", "dispatch", f"Committed 1 change(s), sent 2 nudge(s): Data Structures on {when.split()[0]} at {at} is now with {sub}, same room."),
         {"event": "timetable_updated", "data": {"section": "CSE-A", "slot_ids": [1, 2]}},
-        {"event": "nudge_created", "data": {"id": 3, "user_id": student, "kind": "replan", "title": "TARS re-planned your day", "body": f"DS at {at} is now with {sub}.", "created_at": "2026-11-25T10:42:05", "read": False}}
+        {"event": "nudge_created", "data": {"id": 3, "user_id": student, "kind": "replan", "title": "TARS re-planned your day", "body": f"DS at {at} is now with {sub}.", "created_at": "2026-11-25T10:42:05", "read": False, "snoozed_until": None, "blocked": False}},
+        step("06", "done", "dispatch", "Decision #1: pending_ack"),
     ], indent=2))
     (MOCK / "events.json").write_text(json.dumps(
-        [dict(id=i + 1, **e, clashes_with=[]) for i, e in enumerate(data["events"])], indent=2))
+        [dict(id=i + 1, **e, clashes_with=[], rsvp=False, rsvp_count=0) for i, e in enumerate(data["events"])], indent=2))
     (MOCK / "decisions.json").write_text(json.dumps([{
         "id": 1, "created_at": "2026-11-25T10:42:00", "trigger": "absence",
         "summary": f"{absent} absent: CSE-A DS ({when}) reassigned to {sub} in R101",
@@ -151,9 +158,9 @@ def export_mock(con, data: dict):
         "affected_slot_ids": [1], "status": "pending_ack"}], indent=2))
     (MOCK / "nudges.json").write_text(json.dumps([
         {"id": 1, "user_id": student, "kind": "replan", "title": "TARS re-planned your day",
-         "body": f"DS at {at} is now with {sub}, same room.", "created_at": "2026-11-25T10:43:00", "read": False},
+         "body": f"DS at {at} is now with {sub}, same room.", "created_at": "2026-11-25T10:43:00", "read": False, "snoozed_until": None, "blocked": False},
         {"id": 2, "user_id": student, "kind": "free_slot", "title": "Free slot recommended",
-         "body": "You're free 14:40–15:35. DS assignment due tomorrow; block it?", "created_at": "2026-11-25T09:00:00", "read": False}], indent=2))
+         "body": "You're free 14:40–15:35. DS assignment due tomorrow; block it?", "created_at": "2026-11-25T09:00:00", "read": False, "snoozed_until": None, "blocked": False}], indent=2))
     (MOCK / "stats.json").write_text(json.dumps({"classes_lost": 0, "rescued": 4, "nudges_acted": 17, "avg_response_s": 38}, indent=2))
 
 

@@ -84,6 +84,8 @@ CREATE TABLE nudges (
   title TEXT NOT NULL,
   body TEXT,
   read INTEGER NOT NULL DEFAULT 0,
+  snoozed_until TEXT,              -- ISO local time; hidden from GET /nudges until then
+  blocked INTEGER NOT NULL DEFAULT 0,  -- owner blocked/acted on it; hidden from GET /nudges
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime'))
 );
 
@@ -91,4 +93,11 @@ CREATE TABLE events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL, org TEXT, venue TEXT,
   day TEXT NOT NULL, start TEXT NOT NULL, end TEXT NOT NULL
+);
+
+CREATE TABLE event_rsvps (
+  event_id INTEGER NOT NULL REFERENCES events(id),
+  user_id TEXT NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime')),
+  PRIMARY KEY (event_id, user_id)
 );

@@ -52,6 +52,12 @@ class Nudge(BaseModel):
     body: Optional[str] = None
     created_at: str
     read: bool
+    snoozed_until: Optional[str]          # v0.3: ISO local time, hidden from GET /nudges until then
+    blocked: bool                         # v0.3: owner blocked it; hidden from GET /nudges
+
+
+class SnoozeRequest(BaseModel):
+    minutes: int = Field(ge=1, le=7 * 24 * 60)
 
 
 class Event(BaseModel):
@@ -63,6 +69,8 @@ class Event(BaseModel):
     start: str
     end: str
     clashes_with: list[int]
+    rsvp: bool                # v0.3: has the caller RSVPed
+    rsvp_count: int           # v0.3: total RSVPs
 
 
 class Room(BaseModel):

@@ -97,6 +97,24 @@ TOOL_SPECS = [
 ]
 
 
+# UI re-planning flow. Every agent_step carries one of these as "phase" (contract v0.3).
+PHASES = ("signal", "evaluate", "match", "constraints", "resolve", "dispatch", "escalate")
+DEFAULT_PHASE = {"perceive": "signal", "reason": "evaluate", "tool_call": "evaluate", "act": "dispatch",
+                 "done": "dispatch", "error": "escalate"}
+TOOL_PHASE = {"get_timetable": "evaluate", "get_attendance": "evaluate",
+              "find_substitute": "match", "find_free_rooms": "match", "propose_reschedule": "match",
+              "commit_change": "dispatch", "log_decision": "dispatch"}
+
+
+def tool_phase(name: str, result: Any) -> str:
+    if isinstance(result, dict) and result.get("ok") is False:
+        if result.get("error") == "rule_violation":
+            return "constraints"
+        if result.get("error") == "clash":
+            return "resolve"
+    return TOOL_PHASE.get(name, "evaluate")
+
+
 class AgentUnavailable(Exception):
     pass
 
@@ -139,12 +157,18 @@ class AgentRun:
         self.no_reschedule: set[int] = set()    # slots where propose_reschedule returned null
         self.logged: Optional[dict] = None
         self.final_text = ""
-        self.pending_acts: list[str] = []       # "act" steps, emitted after their tool_call step
+        self.pending_acts: list[tuple[str, str]] = []  # (phase, text) "act" steps, emitted after their tool_call
         self.audience = [incident["reported_by"]]
+        self.last_phase: Optional[str] = None
 
     # ----- events -----
-    def step(self, step: str, text: str) -> None:
-        bus.publish("agent_step", {"decision_id": self.decision_id, "step": step, "text": text,
+    def step(self, step: str, text: str, phase: Optional[str] = None) -> None:
+        if phase is None and step == "reason" and self.last_phase not in (None, "signal"):
+            phase = self.last_phase  # model commentary belongs to the stage TARS is in
+        phase = phase or DEFAULT_PHASE[step]
+        assert phase in PHASES, phase
+        self.last_phase = phase
+        bus.publish("agent_step", {"decision_id": self.decision_id, "step": step, "phase": phase, "text": text,
                                    "ts": datetime.now().isoformat(timespec="seconds")},
                     user_ids=self.audience)
 
@@ -244,13 +268,23 @@ class AgentRun:
             if set(c) - {"slot_id", "status"}:
                 errors.append(f"slot {sid}: a cancellation can't change other fields")
         if errors:
+            self.step("reason", "Rule check failed: " + "; ".join(errors), phase="constraints")
             return {"ok": False, "error": "rule_violation", "detail": "; ".join(errors)}
+        self.step("reason", "Constraints OK: " + "; ".join(self._constraint_notes(c) for c in changes),
+                  phase="constraints")
 
         result: dict[str, Any] = {"ok": True}
         if edits:
+            check = validate_clash(edits, con=self.con)
+            self.step("tool_call", f"validate_clash({len(edits)} change(s)) -> "
+                      + ("OK, no section/faculty/room clash" if check.ok else f"clash: {check.detail}"),
+                      phase="resolve")
+            if not check.ok:
+                return {"ok": False, "error": "clash", "detail": check.detail}
             try:
-                out = actions.apply_changes(self.con, edits)
+                out = actions.apply_changes(self.con, edits)  # validates again inside the write transaction
             except ClashError as e:
+                self.step("tool_call", f"validate_clash -> clash: {e}", phase="resolve")
                 return {"ok": False, "error": "clash", "detail": str(e)}
             for s in out["slots"]:
                 orig = self.slots[s["id"]]
@@ -262,20 +296,36 @@ class AgentRun:
                 else:
                     self.handled[s["id"]] = "room_changed"
             result.update(committed_slot_ids=out["slot_ids"], students_notified=len(out["nudge_ids"]))
-            self.pending_acts.append(f"validate_clash OK, committed {len(edits)} change(s): "
-                                     + "; ".join(actions.describe(self.slots[s["id"]], s) for s in out["slots"]))
+            self.pending_acts.append(("dispatch", f"Committed {len(edits)} change(s), sent {len(out['nudge_ids'])} "
+                                      f"nudge(s): " + "; ".join(actions.describe(self.slots[s["id"]], s)
+                                                                for s in out["slots"])))
         if cancels:
             self.proposed += cancels
             for c in cancels:
                 self.handled[c["slot_id"]] = "cancel_proposed"
             result["awaiting_hod_approval"] = [c["slot_id"] for c in cancels]
-            self.pending_acts.append(f"cancellation of slot(s) {[c['slot_id'] for c in cancels]} "
-                                     f"sent to HOD for approval")
+            self.pending_acts.append(("escalate", f"Cancellation of slot(s) {[c['slot_id'] for c in cancels]} "
+                                                  f"sent to HOD for approval"))
         return result
 
+    def _constraint_notes(self, c: dict) -> str:
+        """Human summary of the rules a (valid) change satisfied, for the 'constraints' phase."""
+        slot = self.slots[c["slot_id"]]
+        att = tools.get_attendance(slot["section"], slot["subject_code"], con=self.con)
+        pct = f"{slot['section']} {slot['subject_code']} attendance {att['percent']:g}%" if att else "no attendance data"
+        if c.get("status") == "cancelled":
+            return f"slot {c['slot_id']}: cancel allowed ({pct}" + (
+                ", substitute and reschedule both failed)" if att and att["below_threshold"] else " >= 75%)")
+        notes = [pct + (" < 75%: cancel blocked" if att and att["below_threshold"] else "")]
+        if "faculty_id" in c and c["faculty_id"] != slot["faculty_id"]:
+            notes.append(f"{c['faculty_id']} can teach {slot['subject_code']}")
+        if (c.get("day", slot["day"]), c.get("period", slot["period"])) != (slot["day"], slot["period"]):
+            notes.append(f"move to {c.get('day', slot['day'])} P{c.get('period', slot['period'])}")
+        return f"slot {c['slot_id']}: " + ", ".join(notes)
+
     def flush_acts(self) -> None:
-        for text in self.pending_acts:
-            self.step("act", text)
+        for phase, text in self.pending_acts:
+            self.step("act", text, phase=phase)
         self.pending_acts.clear()
 
     def t_log_decision(self, summary, reasoning):
@@ -323,7 +373,8 @@ class AgentRun:
                                   status=status, affected_slot_ids=affected,
                                   changes=self.proposed or None)
         bus.publish("decision_updated", d, user_ids=self.audience)
-        self.step("error" if failure else "done", summary if failure else f"Decision #{d['id']}: {status}")
+        self.step("error" if failure else "done", summary if failure else f"Decision #{d['id']}: {status}",
+                  phase="escalate" if status in ("escalated", "proposed") else "dispatch")
         return d
 
 
@@ -398,7 +449,8 @@ def run_loop(run: AgentRun, client) -> None:
         for fc in calls:
             args = dict(fc.args or {})
             result = run.dispatch(fc.name, args)
-            run.step("tool_call", f"{fc.name}({_fmt_args(args)}) -> {_short_result(result)}")
+            run.step("tool_call", f"{fc.name}({_fmt_args(args)}) -> {_short_result(result)}",
+                     phase=tool_phase(fc.name, result))
             run.flush_acts()
             replies.append(types.Part.from_function_response(name=fc.name, response={"result": result}))
         contents.append(types.Content(role="user", parts=replies))

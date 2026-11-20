@@ -5,16 +5,14 @@ Used by the agent's commit_change tool and by HOD approval, so both paths notify
 import sqlite3
 
 from . import bus, tools
-from .db import fetch_slots
+from .db import NUDGE_SELECT, fetch_slots, nudge_dict
 
 
 def create_nudge(con: sqlite3.Connection, user_id: str, kind: str, title: str, body: str) -> dict:
     with con:
         cur = con.execute("INSERT INTO nudges (user_id, kind, title, body) VALUES (?,?,?,?)",
                           (user_id, kind, title, body))
-    r = con.execute("SELECT id, user_id, kind, title, body, created_at, read FROM nudges WHERE id = ?",
-                    (cur.lastrowid,)).fetchone()
-    nudge = {**dict(r), "read": bool(r["read"])}
+    nudge = nudge_dict(con.execute(f"{NUDGE_SELECT} WHERE id = ?", (cur.lastrowid,)).fetchone())
     bus.publish("nudge_created", nudge, user_ids=[user_id], hod=False)
     return nudge
 

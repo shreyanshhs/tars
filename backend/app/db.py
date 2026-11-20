@@ -2,6 +2,7 @@
 import os
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Iterator, Optional
 
@@ -40,6 +41,22 @@ def get_db() -> Iterator[sqlite3.Connection]:
         yield con
     finally:
         con.close()
+
+
+def now() -> datetime:
+    """Single clock for the app (tests monkeypatch this)."""
+    return datetime.now()
+
+
+def iso(dt: datetime) -> str:
+    return dt.isoformat(timespec="seconds")
+
+
+NUDGE_SELECT = "SELECT id, user_id, kind, title, body, created_at, read, snoozed_until, blocked FROM nudges"
+
+
+def nudge_dict(r: sqlite3.Row) -> dict:
+    return {**dict(r), "read": bool(r["read"]), "blocked": bool(r["blocked"])}
 
 
 # Slot rows joined into the exact contract shape.

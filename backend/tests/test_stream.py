@@ -142,7 +142,7 @@ def test_live_stream_end_to_end(server):
     assert {e for e, _ in hod} == {"ping", "timetable_updated", "decision_updated", "agent_step"}
     steps = [d for e, d in hod if e == "agent_step"]
     assert steps[0]["step"] == "perceive" and steps[-1]["step"] == "done"
-    assert set(steps[0]) == {"decision_id", "step", "text", "ts"}
+    assert set(steps[0]) == {"decision_id", "step", "phase", "text", "ts"} and steps[0]["phase"] == "signal"
     final = [d for e, d in hod if e == "decision_updated"][-1]
     assert final["status"] == "pending_ack" and set(final) == {
         "id", "created_at", "trigger", "summary", "reasoning", "affected_slot_ids", "status"}

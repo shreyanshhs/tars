@@ -1,6 +1,10 @@
-# TARS — API Contract (v0.2.2)
+# TARS — API Contract (v0.3)
 
 Shared source of truth for **frontend (Windows, Antigravity)** and **backend (Mac, Claude Code)**.
+
+> **v0.3 (additive, nothing removed or renamed):** `agent_step.phase` · Nudge `snoozed_until` + `blocked`,
+> `POST /nudges/{id}/snooze`, `POST /nudges/{id}/block`, `GET /nudges` hides blocked/snoozed ·
+> Event `rsvp` + `rsvp_count`, `POST|DELETE /events/{id}/rsvp` · `/stats.nudges_acted` also counts blocked.
 Base URL: `http://localhost:8000/api`  ·  All bodies JSON  ·  Times are `HH:MM`, days are `MON..FRI`.
 Auth (hackathon-simple, no passwords): log in once with `POST /auth/login`, store the returned `user_id`, then send header `X-User-Id: <user_id>` on every request. The backend looks up the role (`student` | `faculty` | `hod`).
 **Exception:** `EventSource` can't send custom headers, so `/stream` takes `?user_id=<user_id>` as a query param instead.
@@ -37,12 +41,16 @@ Auth (hackathon-simple, no passwords): log in once with `POST /auth/login`, stor
 
 // Nudge  (card on Today / Nudges screen)
 { "id": 3, "user_id": "S001", "kind": "replan|deadline|free_slot|event",
-  "title": "TARS re-planned your day", "body": "...", "created_at": "...", "read": false }
+  "title": "TARS re-planned your day", "body": "...", "created_at": "...", "read": false,
+  "snoozed_until": null,       // v0.3: ISO local time ("2026-11-25T11:15:00") while snoozed, else null
+  "blocked": false }           // v0.3: true once the owner blocked it
 
 // Event  (events hub)
 { "id": 2, "title": "CyberSec Workshop", "org": "CyberSec Student Chapter",
   "venue": "Main Auditorium", "day": "WED", "start": "14:00", "end": "16:00",
-  "clashes_with": [ /* Slot ids for the caller's section */ ] }
+  "clashes_with": [ /* Slot ids for the caller's section */ ],
+  "rsvp": false,               // v0.3: has the caller RSVPed (always false for faculty/HOD)
+  "rsvp_count": 0 }            // v0.3: total RSVPs
 
 // Faculty  (v0.2.2: faculty directory / HOD rename)
 { "faculty_id": "F08", "name": "<faculty name>",
@@ -77,8 +85,12 @@ Ids (`S001…`, `F01…F08`, `H01`) are stable.
 | POST | `/decisions/{id}/reject` | hod | Reject | HOD dashboard |
 | GET | `/nudges` | all | Caller's nudges | Nudges |
 | POST | `/nudges/{id}/read` | all | Mark done | Nudges |
-| GET | `/events?section=CSE-A` | all | Events + clash info | Events |
-| GET | `/stats` | hod | `{classes_lost, rescued, nudges_acted, avg_response_s}` | Admin KPI cards |
+| POST | `/nudges/{id}/snooze` | owner | Hide for `{ "minutes": n }` (v0.3) | Nudges |
+| POST | `/nudges/{id}/block` | owner | Hide for good (v0.3) | Nudges |
+| GET | `/events?section=CSE-A` | all | Events + clash info + RSVP state | Events |
+| POST | `/events/{id}/rsvp` | student | RSVP (v0.3) | Events |
+| DELETE | `/events/{id}/rsvp` | student | Cancel RSVP (v0.3) | Events |
+| GET | `/stats` | hod | `{classes_lost, rescued, nudges_acted, avg_response_s}` (`nudges_acted` = read or blocked) | Admin KPI cards |
 | GET | `/stream?user_id=S001` | all | **SSE** live updates (see below) | all (live refresh) |
 
 ### POST `/auth/login`
@@ -172,6 +184,23 @@ No body. Response 200: the updated Decision.
 ### POST `/nudges/{id}/read`  (v0.2.1)
 No body. Response 200: the updated Nudge (`read: true`). Only the nudge's owner; anyone else gets 404.
 
+### POST `/nudges/{id}/snooze`  ·  POST `/nudges/{id}/block`  (v0.3, owner only)
+```jsonc
+// snooze request: 1 ≤ minutes ≤ 10080 (one week); snoozing again replaces the time
+{ "minutes": 30 }
+// block: no body
+// response 200 (both): the updated Nudge
+// errors: 401 · 404 if the nudge isn't yours (also for HOD) or doesn't exist · 422 bad minutes
+```
+`GET /nudges` (and `GET /today`'s `nudges`) only return nudges that are **not blocked** and **not currently snoozed**.
+A snoozed nudge reappears on the next fetch after `snoozed_until`; no SSE event is sent when a snooze ends,
+so refetch `/nudges` when you want it to resurface (e.g. on focus or every few minutes).
+Blocked nudges never come back and count toward `/stats.nudges_acted`.
+
+### POST `/events/{id}/rsvp`  ·  DELETE `/events/{id}/rsvp`  (v0.3, students only)
+No body. Response 200: the updated Event (`rsvp`, `rsvp_count`, `clashes_with` for the caller's section).
+Both are idempotent (RSVPing twice or cancelling a missing RSVP is fine). Errors: 401 · 403 faculty/HOD · 404 unknown event.
+
 ### GET `/stream?user_id=<user_id>`  (Server-Sent Events)
 - **Auth:** `user_id` query param (EventSource can't set headers). Unknown id → `401`.
 - **Content-Type:** `text/event-stream`. Server sends `event: ping` with `data: {}` every 15 s as a keep-alive. Ignore it.
@@ -184,8 +213,24 @@ No body. Response 200: the updated Nudge (`read: true`). Only the nudge's owner;
 | `timetable_updated` | `{ "section": "CSE-A", "slot_ids": [12, 13] }` | that section + affected faculty + HOD | refetch `/timetable` |
 | `decision_updated` | Decision object | HOD + reporting faculty | update the audit log row |
 | `nudge_created` | Nudge object | that user | show toast + add to the Nudges list |
-| `agent_step` | `{ "decision_id": 7, "step": "perceive" \| "reason" \| "tool_call" \| "act" \| "done" \| "error", "text": "Calling find_substitute(DS, MON P2)", "ts": "2026-11-25T10:42:03" }` | HOD + reporting faculty | append to the "TARS thinking" feed |
+| `agent_step` | `{ "decision_id": 7, "step": "perceive" \| "reason" \| "tool_call" \| "act" \| "done" \| "error", "phase": "signal" \| "evaluate" \| "match" \| "constraints" \| "resolve" \| "dispatch" \| "escalate", "text": "find_substitute(DS, MON P2) -> <faculty name> (load 5)", "ts": "2026-11-25T10:42:03" }` | HOD + reporting faculty | append to the "TARS thinking" feed; light up `phase` in the re-planning flow |
 | `ping` | `{}` | everyone | ignore |
+
+**`agent_step.phase` (v0.3)** maps every step onto the UI's re-planning flow. `step` is unchanged.
+
+| phase | emitted for | typical `step` |
+|---|---|---|
+| `signal` | incident received | `perceive` |
+| `evaluate` | reading timetable / attendance (`get_timetable`, `get_attendance`) | `tool_call`, `reason` |
+| `match` | `find_substitute`, `find_free_rooms`, `propose_reschedule` | `tool_call` |
+| `constraints` | 75% rule, can-teach, absent-faculty, no-swap checks ("Constraints OK: …" or "Rule check failed: …") | `reason`, `tool_call` |
+| `resolve` | clash validator: "validate_clash(n change(s)) -> OK…" or "-> clash: …" | `tool_call` |
+| `dispatch` | `commit_change`, nudges sent, `log_decision`, `done` for `pending_ack` / `committed` | `tool_call`, `act`, `done` |
+| `escalate` | errors, Gemini unavailable, cancellation sent to HOD, `done` for `escalated` / `proposed` | `error`, `act`, `done` |
+
+Free-text model commentary (`step: "reason"`) takes the phase TARS is currently in (`evaluate` before any tool ran).
+Phases normally progress in that order, but they can repeat (e.g. one `match`→`dispatch` cycle per slot,
+or `constraints` again after a rejected plan). Treat `phase` as "what TARS is doing now", not a strict state machine.
 
 Example frontend code:
 ```ts
