@@ -1,0 +1,158 @@
+# TARS 🛰️ Agentic Management & Security
+
+> An agentic AI campus scheduler that re-plans timetables when faculty are absent, nudges students, and escalates to the HOD. Built for **Martian 1.0** (24-hour Agentic AI Hackathon, 25–26 Nov 2026).
+
+---
+
+## The problem
+When a faculty member is absent or a room becomes unavailable, colleges usually just cancel the class. Students find out late, sections with low attendance lose even more classes, and nobody keeps a record of who decided what.
+
+## What TARS does
+1. **Perceive.** A faculty member reports an absence or disruption from the portal.
+2. **Reason.** A Gemini-powered agent checks the timetable, free rooms, faculty workload and attendance. Sections below **75% attendance** are prioritised and their classes are never cancelled first.
+3. **Act.** It finds a substitute or a new slot. A hard clash validator (plain code, not AI) blocks double-bookings before anything is saved.
+4. **Notify.** The substitute gets a Telegram message with Accept / Decline buttons, and the new slot is added to Google Calendar.
+5. **Escalate.** If no one replies in time, TARS escalates to the HOD automatically.
+6. **Explain.** Every decision is written to an audit log with the agent's reasoning.
+
+Students see their updated grid live, plus nudges (free slots, deadlines) and an events hub that flags clashes with their classes.
+
+---
+
+## Architecture
+
+![TARS architecture](docs/architecture.svg)
+
+| Layer | What it does |
+|---|---|
+| 1. User & Trigger | Faculty Portal, Student Live View, HOD Dashboard |
+| 2. Security & Guardrails | Role-based access (only Faculty/HOD can change data), hard clash validator |
+| 3. TARS Agentic Brain | Gemini function-calling loop: Perceive → Reason & Tool-call → Act & Log |
+| 4A. State & Memory | SQLite (timetable, rooms, faculty workload, attendance), decision audit log |
+| 4B. Action & Escalation | Telegram Bot API, Google Calendar API, timeout state machine → HOD |
+
+## Tech stack
+- **Frontend:** React · Vite · TypeScript · Tailwind CSS (designed in Google Stitch)
+- **Backend:** Python · FastAPI · SQLite · Server-Sent Events
+- **AI:** Google Gemini API (function calling)
+- **Integrations:** Telegram Bot API (polling) · Google Calendar API (service account)
+- **Scheduling:** APScheduler (escalation timers)
+- **Built with:** Google Stitch (UI design) · Antigravity (frontend) · Claude Code (backend)
+
+---
+
+## Repository layout
+```
+tars-martian/
+├── CLAUDE.md                 ← project rules for AI coding agents
+├── docs/
+│   ├── API_CONTRACT.md       ← single source of truth between frontend and backend
+│   ├── architecture.svg
+│   ├── PROMPT_frontend.md    ← build prompt for Antigravity
+│   └── PROMPT_backend.md     ← build prompt for Claude Code
+├── backend/
+│   ├── CLAUDE.md
+│   ├── requirements.txt
+│   └── app/
+│       ├── schema.sql        ← tables + clash-proof unique indexes
+│       └── seed.py           ← builds tars.db + frontend/mock/*.json
+├── frontend/
+│   ├── AGENTS.md
+│   ├── stitch/01..05         ← Stitch exports: Today, Nudges, Events, Schedule, Admin
+│   └── mock/                 ← mock API responses for building UI first
+└── .env.example
+```
+
+---
+
+## Getting started
+
+### Prerequisites
+- Git
+- Python 3.10+ (backend)
+- Node.js 18+ LTS (frontend)
+
+### 1. Clone
+```bash
+git clone https://github.com/YOUR-USERNAME/tars-martian.git
+cd tars-martian
+```
+
+### 2. Backend (macOS)
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python3 app/seed.py
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+API docs: http://localhost:8000/docs
+
+<details>
+<summary>Backend on Windows (PowerShell)</summary>
+
+```powershell
+cd backend
+py -m venv .venv
+.venv\Scripts\Activate.ps1   # if blocked: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+pip install -r requirements.txt
+py app\seed.py
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+</details>
+
+### 3. Frontend (any OS)
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Open http://localhost:5173. Set `VITE_USE_MOCK=true` in `frontend/.env` to run without the backend.
+
+### 4. Environment variables
+Copy `.env.example` to `.env` in the repo root and fill in:
+
+| Variable | Where to get it |
+|---|---|
+| `GEMINI_API_KEY` | aistudio.google.com → Get API key |
+| `TELEGRAM_BOT_TOKEN` | Telegram → @BotFather → `/newbot` |
+| `GOOGLE_CALENDAR_ID` | Google Calendar → calendar settings → Calendar ID |
+| `GOOGLE_SERVICE_ACCOUNT_FILE` | Google Cloud → Service Account → JSON key (keep at `backend/service-account.json`) |
+| `ESCALATION_MINUTES` | Minutes before escalating to HOD (use `2` for demos) |
+
+> ⚠️ `.env` and `service-account*.json` are gitignored. Never commit keys.
+
+---
+
+## Demo scenario
+The seed data includes a ready-made scenario:
+
+1. Switch role to **Faculty**, then report **Dr. Ananya Rao (F01)** absent on **Monday**.
+2. This affects **CSE-A**: DS Lab (P1) and Data Structures (P2).
+3. CSE-A's Data Structures attendance is **71%** (below 75%), so TARS refuses to cancel.
+4. TARS picks **Prof. Vikram Joshi (F08)**: he teaches DS, is free at that time, and has the lowest load.
+5. The validator confirms there's no clash → the change is saved → the Calendar event is created → the substitute gets a Telegram ping.
+6. No reply within 2 minutes → the HOD is alerted on Telegram.
+7. Switch to **Student**: the grid shows the class as *TARS Re-planned*, with a nudge. Switch to **HOD**: the audit log shows TARS's full reasoning.
+
+---
+
+## Team workflow
+| | Frontend | Backend |
+|---|---|---|
+| Owner | Windows · Antigravity | Mac · Claude Code |
+| Folder | `/frontend` only | `/backend` only |
+| Branch | `frontend` | `backend` |
+
+- Run `git pull origin main` before every session.
+- Open a Pull Request into `main` at the end of each day.
+- Any change to an endpoint goes into `docs/API_CONTRACT.md` **first**.
+
+---
+
+## Team TARS
+- **Shreyansh**: Backend, AI agent, integrations
+- **[Teammate name]**: Frontend, UI
+
+*Martian 1.0 · Agentic AI Hackathon · Campus Security & Management*

@@ -1,0 +1,129 @@
+<svg class="dark " xmlns="http://www.w3.org/2000/svg" viewBox="0 0 682.5 668" width="682.5" height="668" id="mcdd562__root" data-diagram-type="ascii" xmlns:c2pa="http://c2pa.org/manifest">
+  <style data-mercat-style="universal">.mercat text{font-family:'Google Sans',Roboto,Arial,sans-serif;fill:var(--m-text);dominant-baseline:central}.mercat .m-node .m-shape{fill:var(--m-node-fill);stroke:var(--m-node-stroke);stroke-width:1.5px}.mercat .m-edge .m-path{fill:none;stroke:var(--m-line);stroke-width:1.5px}.mercat .m-group .m-shape{fill:var(--m-group-fill);stroke:var(--m-group-stroke);stroke-width:1px}.mercat .m-group .m-label{fill:var(--m-group-text)}.mercat .m-note .m-shape{fill:var(--m-note-fill);stroke:var(--m-note-stroke);stroke-width:1px}.mercat .m-note .m-label{fill:var(--m-note-text)}.mercat .t-heading{font-size:14px;font-weight:600}.mercat .t-label{font-size:13px;font-weight:500}</style>
+  <style data-mercat-style="theme-light">#mcdd562__root{--m-bg:#ffffff;--m-text:#1f1f1f;--m-line:#545454;--m-node-fill:#f8f9fa;--m-node-stroke:#747775;--m-group-fill:#f8f9fa;--m-group-stroke:#747775;--m-group-text:#1f1f1f;--m-note-fill:#fef9e7;--m-note-stroke:#f39c12;--m-note-text:#1f1f1f}</style>
+  <style data-mercat-style="theme-dark">#mcdd562__root.dark{--m-bg:#1f1f1f;--m-text:#e3e3e3;--m-line:#bfbfbf;--m-node-fill:#2d2e30;--m-node-stroke:#8e918f;--m-group-fill:#2d2e30;--m-group-stroke:#8e918f;--m-group-text:#e3e3e3;--m-note-fill:#69550d;--m-note-stroke:#f39c12;--m-note-text:#e3e3e3}</style>
+  <style data-mercat-style="type">#mcdd562__root .outer-box{fill:var(--m-text);stroke:var(--m-node-stroke);stroke-width:1.75px;fill-opacity:0.06}#mcdd562__root .rect-pill,#mcdd562__root .stadium-pill{fill:var(--m-bg);stroke:var(--m-node-stroke);stroke-width:1.5px}#mcdd562__root .header-text{fill:var(--m-text);font-size:14px;font-weight:600;white-space:pre}#mcdd562__root .label-text{fill:var(--m-text);font-size:13px;font-weight:500;white-space:pre}#mcdd562__root .arrow-line{fill:none;stroke:var(--m-line);stroke-width:1.5px;stroke-linecap:round;stroke-linejoin:round}#mcdd562__root .annotation-text{fill:var(--m-text);font-size:12px;font-weight:500;white-space:pre}</style>
+  <style data-mercat-style="diagram">#mcdd562__root text{font-family:Google Sans Mono, Roboto Mono, monospace}</style>
+  <g class="mercat mercat-ascii">
+    <defs>
+      <marker id="mcdd562__mk-arrow" refX="9.45" refY="3.4" markerWidth="10.8" markerHeight="6.8" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+        <path d="M 0 0 L 10.8 3.4 L 0 6.8 Z" class="m-marker" fill="var(--m-line)" stroke="none"/>
+      </marker>
+    </defs>
+    <g class="m-group shape outer cluster" id="mcdd562__group__g0" data-role="group">
+      <rect x="15" y="15" width="612" height="110" class="m-shape outer-box"/>
+      <text x="316.75" y="37" class="m-label t-heading header-text" text-anchor="middle">1. USER &amp; TRIGGER LAYER</text>
+    </g>
+    <g class="m-node shape outer cluster" id="mcdd562__node__n1" data-role="step">
+      <rect x="15" y="169" width="612" height="110" class="m-shape outer-box"/>
+      <text x="316.75" y="202" class="m-label t-heading header-text" text-anchor="middle">2. SECURITY &amp; GUARDRAIL LAYER</text>
+      <text x="316.75" y="224" class="m-label t-heading header-text" text-anchor="middle">• Role-Based Access Control (RBAC): Only Faculty/HOD can mutate DB</text>
+      <text x="316.75" y="246" class="m-label t-heading header-text" text-anchor="middle">• Hard Clash Validator: Blocks double-bookings before DB writes</text>
+    </g>
+    <g class="m-group shape outer cluster" id="mcdd562__group__g2" data-role="group">
+      <rect x="15" y="323" width="612" height="154" class="m-shape outer-box"/>
+      <text x="316.75" y="345" class="m-label t-heading header-text" text-anchor="middle">3. TARS AGENTIC BRAIN (Gemini)</text>
+    </g>
+    <g class="m-node shape outer cluster" id="mcdd562__node__n3" data-role="step">
+      <rect x="40.5" y="367" width="119" height="88" class="m-shape outer-box"/>
+      <text x="95.75" y="400" class="m-label t-heading header-text" text-anchor="middle">Perceive</text>
+      <text x="95.75" y="422" class="m-label t-heading header-text" text-anchor="middle">(Context)</text>
+    </g>
+    <g class="m-node shape outer cluster" id="mcdd562__node__n4" data-role="step">
+      <rect x="193.5" y="367" width="238" height="88" class="m-shape outer-box"/>
+      <text x="308.25" y="400" class="m-label t-heading header-text" text-anchor="middle">Reason &amp; Tool-Calling</text>
+      <text x="308.25" y="422" class="m-label t-heading header-text" text-anchor="middle">(Prioritize &lt;75% Attend)</text>
+    </g>
+    <g class="m-node shape outer cluster" id="mcdd562__node__n5" data-role="step">
+      <rect x="465.5" y="367" width="136" height="88" class="m-shape outer-box"/>
+      <text x="529.25" y="400" class="m-label t-heading header-text" text-anchor="middle">Act &amp; Log</text>
+      <text x="529.25" y="422" class="m-label t-heading header-text" text-anchor="middle">(Reasoning)</text>
+    </g>
+    <g class="m-node shape outer cluster" id="mcdd562__node__n6" data-role="step">
+      <rect x="15" y="521" width="340" height="132" class="m-shape outer-box"/>
+      <text x="180.75" y="554" class="m-label t-heading header-text" text-anchor="middle">4A. STATE &amp; MEMORY LAYER</text>
+      <text x="180.75" y="576" class="m-label t-heading header-text" text-anchor="middle">• SQLite DB (Timetable, Rooms,</text>
+      <text x="180.75" y="598" class="m-label t-heading header-text" text-anchor="middle">Faculty Workload, Attendance %)</text>
+      <text x="180.75" y="620" class="m-label t-heading header-text" text-anchor="middle">• Decision Audit Log</text>
+    </g>
+    <g class="m-node shape outer cluster" id="mcdd562__node__n7" data-role="step">
+      <rect x="380.5" y="521" width="246.5" height="132" class="m-shape outer-box"/>
+      <text x="499.5" y="554" class="m-label t-heading header-text" text-anchor="middle">4B. ACTION &amp; ESCALATION</text>
+      <text x="499.5" y="576" class="m-label t-heading header-text" text-anchor="middle">• Telegram Bot API</text>
+      <text x="499.5" y="598" class="m-label t-heading header-text" text-anchor="middle">• Timeout State Machine</text>
+      <text x="499.5" y="620" class="m-label t-heading header-text" text-anchor="middle">(Auto-Escalate to HOD)</text>
+    </g>
+    <g class="m-node shape inner" id="mcdd562__node__n8" data-role="step">
+      <rect x="42.5" y="60" width="132" height="20" rx="3" ry="3" class="m-shape rect-pill"/>
+      <text x="108.5" y="70" class="m-label t-label label-text" text-anchor="middle">Faculty Portal</text>
+    </g>
+    <g class="m-node shape inner" id="mcdd562__node__n9" data-role="step">
+      <rect x="246.5" y="60" width="157.5" height="20" rx="3" ry="3" class="m-shape rect-pill"/>
+      <text x="325.25" y="70" class="m-label t-label label-text" text-anchor="middle">Student Live View</text>
+    </g>
+    <g class="m-node shape inner" id="mcdd562__node__n10" data-role="step">
+      <rect x="476" y="60" width="123.5" height="20" rx="3" ry="3" class="m-shape rect-pill"/>
+      <text x="537.75" y="70" class="m-label t-label label-text" text-anchor="middle">HOD Dashboard</text>
+    </g>
+    <g class="m-node shape inner" id="mcdd562__node__n11" data-role="step">
+      <rect x="35.9" y="82" width="145.2" height="20" rx="10" ry="10" class="m-shape stadium-pill"/>
+      <text x="108.5" y="92" class="m-label t-label label-text" text-anchor="middle">Report Absence</text>
+    </g>
+    <g class="m-node shape inner" id="mcdd562__node__n12" data-role="step">
+      <rect x="240.95" y="82" width="168.6" height="20" rx="10" ry="10" class="m-shape stadium-pill"/>
+      <text x="325.25" y="92" class="m-label t-label label-text" text-anchor="middle">View Updated Grid</text>
+    </g>
+    <g class="m-node shape inner" id="mcdd562__node__n13" data-role="step">
+      <rect x="468.7" y="82" width="129.6" height="20" rx="10" ry="10" class="m-shape stadium-pill"/>
+      <text x="533.5" y="92" class="m-label t-label label-text" text-anchor="middle">Audit &amp; Logs</text>
+    </g>
+    <g class="m-edge" id="mcdd562__edge__n3__n4__0" data-role="connector">
+      <line x1="159.5" y1="400" x2="192.15" y2="400" class="m-path arrow-line" marker-end="url(#mcdd562__mk-arrow)"/>
+    </g>
+    <g class="m-edge" id="mcdd562__edge__n4__n5__0" data-role="connector">
+      <line x1="431.5" y1="400" x2="464.15" y2="400" class="m-path arrow-line" marker-end="url(#mcdd562__mk-arrow)"/>
+    </g>
+    <g class="m-edge" id="mcdd562__edge__n11__n1__0" data-role="connector">
+      <line x1="104.25" y1="125" x2="104.25" y2="167.65" class="m-path arrow-line" marker-end="url(#mcdd562__mk-arrow)"/>
+    </g>
+    <g class="m-edge" id="mcdd562__edge__n1__n3__0" data-role="connector">
+      <line x1="104.25" y1="279" x2="104.25" y2="321.65" class="m-path arrow-line" marker-end="url(#mcdd562__mk-arrow)"/>
+    </g>
+    <g class="m-edge" id="mcdd562__edge__n4__n6__0" data-role="connector">
+      <line x1="308.25" y1="477" x2="308.25" y2="519.65" class="m-path arrow-line" marker-end="url(#mcdd562__mk-arrow)"/>
+    </g>
+    <g class="m-edge" id="mcdd562__edge__n1__n12__0" data-role="connector">
+      <line x1="321" y1="169" x2="321" y2="126.35" class="m-path arrow-line" marker-end="url(#mcdd562__mk-arrow)"/>
+    </g>
+    <g class="m-edge" id="mcdd562__edge__n5__n7__0" data-role="connector">
+      <line x1="529.25" y1="477" x2="529.25" y2="519.65" class="m-path arrow-line" marker-end="url(#mcdd562__mk-arrow)"/>
+    </g>
+    <g class="m-edge" id="mcdd562__edge__n1__n13__0" data-role="connector">
+      <line x1="537.75" y1="169" x2="537.75" y2="126.35" class="m-path arrow-line" marker-end="url(#mcdd562__mk-arrow)"/>
+    </g>
+    <g class="m-edge" id="mcdd562__edge__n5__n1__0" data-role="connector">
+      <line x1="537.75" y1="323" x2="537.75" y2="280.35" class="m-path arrow-line" marker-end="url(#mcdd562__mk-arrow)"/>
+    </g>
+    <g class="m-node m-note" id="mcdd562__note__a0" data-role="annotation">
+      <text x="117" y="136" class="m-label t-label annotation-text" text-anchor="start">Event Trigger</text>
+    </g>
+    <g class="m-node m-note" id="mcdd562__note__a1" data-role="annotation">
+      <text x="338" y="136" class="m-label t-label annotation-text" text-anchor="start">Live Refresh</text>
+    </g>
+    <g class="m-node m-note" id="mcdd562__note__a2" data-role="annotation">
+      <text x="550.5" y="136" class="m-label t-label annotation-text" text-anchor="start">Logs</text>
+    </g>
+    <g class="m-node m-note" id="mcdd562__note__a3" data-role="annotation">
+      <text x="117" y="290" class="m-label t-label annotation-text" text-anchor="start">Validated Event</text>
+    </g>
+    <g class="m-node m-note" id="mcdd562__note__a4" data-role="annotation">
+      <text x="550.5" y="290" class="m-label t-label annotation-text" text-anchor="start">Proposed Action</text>
+    </g>
+    <g class="m-node m-note" id="mcdd562__note__a5" data-role="annotation">
+      <text x="321" y="488" class="m-label t-label annotation-text" text-anchor="start">Tool Queries</text>
+    </g>
+    <g class="m-node m-note" id="mcdd562__note__a6" data-role="annotation">
+      <text x="542" y="488" class="m-label t-label annotation-text" text-anchor="start">Alerts</text>
+    </g>
+  </g>
+<metadata><c2pa:manifest>AAAWgmp1bWIAAAAeanVtZGMycGEAEQAQgAAAqgA4m3EDYzJwYQAAABZcanVtYgAAAEdqdW1kYzJtYQARABCAAACqADibcQN1cm46YzJwYTpjNDQ5NWYwMS05YTExLTRmZWQtOWU3ZC0wNjJhZDU2NTRmZTEAAAADl2p1bWIAAAApanVtZGMyYXMAEQAQgAAAqgA4m3EDYzJwYS5hc3NlcnRpb25zAAAAALxqdW1iAAAARGp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuaW5ncmVkaWVudC52MwAAAAAYYzJzaDRcWSTpAKe+CZdCTdQiFqgAAABwY2JvcqNpZGM6Zm9ybWF0bWltYWdlL3N2Zyt4bWxqaW5zdGFuY2VJRHgseG1wOmlpZDpkZTA2Y2RjNi1iYTQ3LTQxMDMtOWVmZS03NTU5Y2RlODZlYjNscmVsYXRpb25zaGlwaHBhcmVudE9mAAAB4mp1bWIAAABBanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5hY3Rpb25zLnYyAAAAABhjMnNodV4YpXdXEyQTpcz08xbATgAAAZljYm9yomdhY3Rpb25zgqJmYWN0aW9ua2MycGEub3BlbmVkanBhcmFtZXRlcnOha2luZ3JlZGllbnRzgaJjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFggxz5WmF3O7HwB+M43aQPrYQM9Vu7Lkoh7Z19NSaujEg6kZmFjdGlvbngdY29tLmFudGhyb3BpYy5jbGF1ZGUucHJvdmlkZWRqcGFyYW1ldGVyc6F4H2NvbS5hbnRocm9waWMub3JpZ2luLWNvbmZpZGVuY2VndW5rbm93bmtkZXNjcmlwdGlvbnhmQ2xhdWRlIHByb3ZpZGVkIHRoaXMgZmlsZSBhdCB0aGUgcmVxdWVzdCBvZiBhIHVzZXIgYW5kIG1heSBoYXZlIGNyZWF0ZWQgb3IgbW9kaWZpZWQgdGhlIGZpbGUgY29udGVudHMubXNvZnR3YXJlQWdlbnShZG5hbWVmQ2xhdWRlcmFsbEFjdGlvbnNJbmNsdWRlZPUAAADIanVtYgAAAEBqdW1kY2JvcgARABCAAACqADibcRNjMnBhLmhhc2guZGF0YQAAAAAYYzJzaNtCBDz7+XvzCNQirizyI4sAAACAY2JvcqVjYWxnZnNoYTI1NmNwYWRMAAAAAAAAAAAAAAAAZGhhc2hYILAiY6qEtScKbXn7s+/BqrLhl9LbEnP6l0dg2kZ9BKqFZG5hbWVuanVtYmYgbWFuaWZlc3RqZXhjbHVzaW9uc4GiZXN0YXJ0GSxvZmxlbmd0aBkeBAAAAj5qdW1iAAAAJ2p1bWRjMmNsABEAEIAAAKoAOJtxA2MycGEuY2xhaW0udjIAAAACD2Nib3KlY2FsZ2ZzaGEyNTZpc2lnbmF0dXJleE1zZWxmI2p1bWJmPS9jMnBhL3VybjpjMnBhOmM0NDk1ZjAxLTlhMTEtNGZlZC05ZTdkLTA2MmFkNTY1NGZlMS9jMnBhLnNpZ25hdHVyZWppbnN0YW5jZUlEeCx4bXA6aWlkOjZlYjczOTcwLTRlOTMtNDUxMS1hYzFlLTQxODY4NDljODRhMHJjcmVhdGVkX2Fzc2VydGlvbnODomN1cmx4LXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaW5ncmVkaWVudC52M2RoYXNoWCDHPlaYXc7sfAH4zjdpA+thAz1W7suSiHtnX01Jq6MSDqJjdXJseCpzZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmFjdGlvbnMudjJkaGFzaFggEHVW4qne07DbcVqX/utgo+PxGxe4IOLrsaDm+B0q60WiY3VybHgpc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5oYXNoLmRhdGFkaGFzaFgg9MBpdglhcse7xuPxWpPhYXaZRVT166xgytdcukabXo10Y2xhaW1fZ2VuZXJhdG9yX2luZm+jZG5hbWVvQW50aHJvcGljIEZpbGVzZ3ZlcnNpb25lMS4wLjBrc3BlY1ZlcnNpb25lMi40LjAAABA4anVtYgAAAChqdW1kYzJjcwARABCAAACqADibcQNjMnBhLnNpZ25hdHVyZQAAABAIY2JvctKEWQISogEmGCFZAgowggIGMIIBjaADAgECAhRA5aAK7sI50L64g/oGQgU9Z1UTADAKBggqhkjOPQQDAzBJMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEuMCwGA1UEAxMlQW50aHJvcGljIENvbnRlbnQgQ3JlZGVudGlhbHMgUm9vdCBDQTAeFw0yNjA4MDcxODQzNTZaFw0yODA4MDYxOTQzNTZaMEQxFzAVBgNVBAoTDkFudGhyb3BpYywgUEJDMSkwJwYDVQQDEyBBbnRocm9waWMgQ2xhdWRlIENvbnRlbnQgU2lnbmluZzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJh6CmvLUBgFFNU0vUKlOVtE6djd17L5SuwX0LemFisBM3dkd/3cyjxFA3Qo5S46fX0/ihY0VZ7mfb9KF703t5OjWDBWMA4GA1UdDwEB/wQEAwIHgDAVBgNVHSUEDjAMBgorBgEEAYPoXgIBMAwGA1UdEwEB/wQCMAAwHwYDVR0jBBgwFoAUzlHiBIFOZFsj+OPEz5o+nMHXXMIwCgYIKoZIzj0EAwMDZwAwZAIwMXMdFJ4BetLLVY7ORuE9noqbbAZOZn/aArXyTwFAZfKrPzxF2vPoJNf1+UCdg1XGAjBwX1zd9WGqYkqmL5SFqw1QySjr1zJfpJM9+1rdDwSPLMOPOjKuiXjoU/pUUeG9RwmhY3BhZFkNngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPZYQI3A67UYdy0Z6YfBfjvf9tS2SsKwIWu9wtukGFVPQi4qDUFJgRRxFlEsibWjA1wXPuq6yHEaPAL0VmSSDUgxaGo=</c2pa:manifest></metadata></svg>
