@@ -10,7 +10,15 @@ import {
 } from 'lucide-react';
 
 export const ScheduleView: React.FC = () => {
-  const { scheduleSlots, facultyStatuses, roomStatuses } = useTars();
+  const {
+    slots,
+    selectedSection,
+    setSelectedSection,
+    facultyList,
+    roomList,
+    refreshData,
+  } = useTars();
+
   const [viewMode, setViewMode] = useState<'week' | 'day' | 'faculty' | 'rooms'>('week');
   const [calendarSynced, setCalendarSynced] = useState(false);
   const [isReevaluating, setIsReevaluating] = useState(false);
@@ -24,16 +32,24 @@ export const ScheduleView: React.FC = () => {
     FRI: '21',
   };
 
-  const timeRows = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00'];
+  const periods = [
+    { period: 1, time: '09:00 – 09:55' },
+    { period: 2, time: '09:55 – 10:50' },
+    { period: 3, time: '11:05 – 12:00' },
+    { period: 4, time: '12:00 – 12:55' },
+    { period: 5, time: '13:45 – 14:40' },
+    { period: 6, time: '14:40 – 15:35' },
+  ];
 
   const handleSyncCalendar = () => {
     setCalendarSynced(true);
     setTimeout(() => setCalendarSynced(false), 2500);
   };
 
-  const handleReevaluate = () => {
+  const handleReevaluate = async () => {
     setIsReevaluating(true);
-    setTimeout(() => setIsReevaluating(false), 900);
+    await refreshData();
+    setTimeout(() => setIsReevaluating(false), 600);
   };
 
   return (
@@ -41,7 +57,20 @@ export const ScheduleView: React.FC = () => {
       {/* Top Header */}
       <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-200/80 gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Academic Schedule: Section CSE-A</h1>
+          <div className="flex items-center space-x-2">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              Academic Schedule: Section {selectedSection}
+            </h1>
+            <select
+              value={selectedSection}
+              onChange={(e) => setSelectedSection(e.target.value)}
+              className="text-xs font-bold bg-white border border-slate-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            >
+              <option value="CSE-A">CSE-A</option>
+              <option value="CSE-B">CSE-B</option>
+              <option value="CSE-C">CSE-C</option>
+            </select>
+          </div>
           <p className="text-xs text-slate-500 mt-0.5">
             Week 12: Nov 17 – Nov 22, 2024 • B.Tech Computer Science &amp; Engineering
           </p>
@@ -53,7 +82,9 @@ export const ScheduleView: React.FC = () => {
             <button
               onClick={() => setViewMode('week')}
               className={`px-3 py-1.5 rounded-lg transition-all ${
-                viewMode === 'week' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                viewMode === 'week'
+                  ? 'bg-white text-slate-900 font-bold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Week view
@@ -61,7 +92,9 @@ export const ScheduleView: React.FC = () => {
             <button
               onClick={() => setViewMode('day')}
               className={`px-3 py-1.5 rounded-lg transition-all ${
-                viewMode === 'day' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                viewMode === 'day'
+                  ? 'bg-white text-slate-900 font-bold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Day view
@@ -69,7 +102,9 @@ export const ScheduleView: React.FC = () => {
             <button
               onClick={() => setViewMode('faculty')}
               className={`px-3 py-1.5 rounded-lg transition-all ${
-                viewMode === 'faculty' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                viewMode === 'faculty'
+                  ? 'bg-white text-slate-900 font-bold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Faculty
@@ -77,7 +112,9 @@ export const ScheduleView: React.FC = () => {
             <button
               onClick={() => setViewMode('rooms')}
               className={`px-3 py-1.5 rounded-lg transition-all ${
-                viewMode === 'rooms' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                viewMode === 'rooms'
+                  ? 'bg-white text-slate-900 font-bold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Rooms
@@ -112,11 +149,7 @@ export const ScheduleView: React.FC = () => {
           <span className="text-[11px] font-bold uppercase text-slate-400">Legend</span>
           <div className="flex items-center space-x-1.5">
             <span className="w-2.5 h-2.5 rounded-sm bg-slate-300"></span>
-            <span>Lecture</span>
-          </div>
-          <div className="flex items-center space-x-1.5">
-            <span className="w-2.5 h-2.5 rounded-sm bg-slate-700"></span>
-            <span>Lab</span>
+            <span>Scheduled</span>
           </div>
           <div className="flex items-center space-x-1.5">
             <span className="w-2.5 h-2.5 rounded-sm bg-indigo-600"></span>
@@ -128,7 +161,7 @@ export const ScheduleView: React.FC = () => {
           </div>
         </div>
 
-        <div className="text-[11px] font-mono text-slate-400">Grid: 45 min intervals</div>
+        <div className="text-[11px] font-mono text-slate-400">6 Periods • 55 min intervals</div>
       </div>
 
       {/* Main Grid & Sidebar Layout */}
@@ -140,14 +173,14 @@ export const ScheduleView: React.FC = () => {
             <div className="flex items-center space-x-2">
               <h3 className="font-bold text-slate-900 text-sm">Weekly Matrix</h3>
               <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200/60">
-                CSE-A • Sem 1
+                {selectedSection} • Sem 1
               </span>
             </div>
 
             <div className="flex items-center space-x-3 text-xs">
               <span className="flex items-center space-x-1 text-rose-600 font-medium">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                <span>Rm 302 Locked</span>
+                <span>Room 102 Projector Locked</span>
               </span>
               <span className="text-slate-300">•</span>
               <span className="flex items-center space-x-1 text-emerald-600 font-medium">
@@ -161,7 +194,7 @@ export const ScheduleView: React.FC = () => {
           <div className="mt-4 min-w-[620px]">
             {/* Table Header */}
             <div className="grid grid-cols-6 gap-2 text-center text-xs font-bold text-slate-400 uppercase tracking-wider pb-2 border-b border-slate-100">
-              <div>Time</div>
+              <div>Period</div>
               {days.map((day) => (
                 <div key={day} className="flex flex-col items-center">
                   <span className="text-[11px] text-slate-400">{day}</span>
@@ -172,69 +205,75 @@ export const ScheduleView: React.FC = () => {
 
             {/* Time Slot Rows */}
             <div className="divide-y divide-slate-100 mt-1">
-              {timeRows.map((time) => {
-                if (time === '12:00') {
-                  return (
-                    <div key={time} className="py-2.5 my-1">
-                      <div className="w-full bg-amber-50/70 border border-amber-200/70 rounded-xl py-2 px-4 text-center text-xs font-semibold text-amber-800 flex items-center justify-center space-x-2">
-                        <span>🍴</span>
-                        <span>Recess &amp; Refectory Window (12:00 – 13:00)</span>
-                      </div>
-                    </div>
-                  );
-                }
-
+              {periods.map(({ period, time }, idx) => {
                 return (
-                  <div key={time} className="grid grid-cols-6 gap-2 py-2 items-stretch">
-                    {/* Time Label */}
-                    <div className="flex items-center justify-center font-mono text-xs font-semibold text-slate-400">
-                      {time}
-                    </div>
+                  <React.Fragment key={period}>
+                    {/* Lunch Break banner after period 4 */}
+                    {idx === 4 && (
+                      <div className="py-2.5 my-1">
+                        <div className="w-full bg-amber-50/70 border border-amber-200/70 rounded-xl py-1.5 px-4 text-center text-xs font-semibold text-amber-800 flex items-center justify-center space-x-2">
+                          <span>🍴</span>
+                          <span>Recess &amp; Refectory Window (12:55 – 13:45)</span>
+                        </div>
+                      </div>
+                    )}
 
-                    {/* 5 Day Cells */}
-                    {days.map((day) => {
-                      const slot = scheduleSlots.find((s) => s.time === time && s.day === day);
-                      if (!slot) {
+                    <div className="grid grid-cols-6 gap-2 py-2 items-stretch">
+                      {/* Period Label */}
+                      <div className="flex flex-col items-center justify-center font-mono text-[11px] font-semibold text-slate-400">
+                        <span className="font-bold text-slate-700">P{period}</span>
+                        <span className="text-[10px] text-slate-400">{time}</span>
+                      </div>
+
+                      {/* 5 Day Cells */}
+                      {days.map((day) => {
+                        const slot = slots.find((s) => s.period === period && s.day === day);
+                        if (!slot) {
+                          return (
+                            <div
+                              key={day}
+                              className="p-2 rounded-xl bg-slate-50/50 border border-dashed border-slate-200 text-center text-[10px] text-slate-400 flex items-center justify-center min-h-[64px]"
+                            >
+                              Free
+                            </div>
+                          );
+                        }
+
+                        const isReplanned = slot.status === 'replanned';
+                        const isCancelled = slot.status === 'cancelled';
+
                         return (
                           <div
                             key={day}
-                            className="p-2 rounded-xl bg-slate-50/50 border border-dashed border-slate-200 text-center text-[10px] text-slate-400 flex items-center justify-center min-h-[64px]"
+                            className={`p-2 rounded-xl border text-left flex flex-col justify-between transition-all min-h-[68px] ${
+                              isReplanned
+                                ? 'bg-purple-50/80 border-purple-300 shadow-xs ring-1 ring-purple-200'
+                                : isCancelled
+                                ? 'bg-rose-50/50 border-rose-200'
+                                : 'bg-white border-slate-200/80 hover:border-slate-300'
+                            }`}
                           >
-                            Free
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <h5 className="font-bold text-slate-900 text-[11px] truncate">
+                                  {slot.subject_code}
+                                </h5>
+                                {isReplanned && (
+                                  <span className="w-2 h-2 rounded-full bg-purple-600 animate-pulse"></span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                {slot.room_id}
+                              </span>
+                            </div>
+                            <div className="text-[10px] font-medium text-slate-500 truncate mt-1">
+                              {slot.faculty_name}
+                            </div>
                           </div>
                         );
-                      }
-
-                      const isReplaced = slot.status === 're-planned';
-                      const isLocked = slot.room === 'Rm 302';
-
-                      return (
-                        <div
-                          key={day}
-                          className={`p-2 rounded-xl border text-left flex flex-col justify-between transition-all min-h-[68px] ${
-                            isReplaced
-                              ? 'bg-indigo-50/80 border-indigo-300 shadow-xs ring-1 ring-indigo-200'
-                              : isLocked
-                              ? 'bg-rose-50/50 border-rose-200'
-                              : 'bg-white border-slate-200/80 hover:border-slate-300'
-                          }`}
-                        >
-                          <div>
-                            <div className="flex items-center justify-between">
-                              <h5 className="font-bold text-slate-900 text-[11px] truncate">{slot.subject}</h5>
-                              {isReplaced && (
-                                <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
-                              )}
-                            </div>
-                            <span className="text-[10px] text-slate-400 font-mono">{slot.room}</span>
-                          </div>
-                          <div className="text-[10px] font-medium text-slate-500 truncate mt-1">
-                            {slot.faculty}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                      })}
+                    </div>
+                  </React.Fragment>
                 );
               })}
             </div>
@@ -248,13 +287,15 @@ export const ScheduleView: React.FC = () => {
             </div>
             <div className="flex items-center space-x-4">
               <button
-                onClick={() => alert('Printing Section CSE-A weekly PDF timetable...')}
+                onClick={() => alert(`Printing official schedule for ${selectedSection}...`)}
                 className="hover:text-slate-800 transition-colors"
               >
                 Print PDF
               </button>
               <button
-                onClick={() => alert('Timetable rules: Max 28 contact hrs/wk, 1 lab block daily, min 1 recess window.')}
+                onClick={() =>
+                  alert('Timetable rules: Max 18 contact hrs/wk per faculty, min 75% attendance threshold protected.')
+                }
                 className="hover:text-slate-800 transition-colors"
               >
                 Timetable Rules
@@ -265,45 +306,27 @@ export const ScheduleView: React.FC = () => {
 
         {/* Right Sidebar: Faculty & Rooms Status (4 cols) */}
         <div className="lg:col-span-4 space-y-6">
-          {/* Faculty Status */}
+          {/* Faculty Directory & Status */}
           <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-sm">Faculty Status</h3>
-              <span className="text-[11px] text-slate-400">4 Monitored</span>
+              <h3 className="font-bold text-slate-900 text-sm">Faculty Workload Directory</h3>
+              <span className="text-[11px] text-slate-400">{facultyList.length} Monitored</span>
             </div>
 
             <div className="mt-3.5 space-y-3">
-              {facultyStatuses.map((fac) => (
-                <div key={fac.name} className="flex items-center justify-between text-xs">
+              {facultyList.map((fac) => (
+                <div key={fac.faculty_id} className="flex items-center justify-between text-xs">
                   <div>
                     <div className="flex items-center space-x-1.5">
-                      <span
-                        className={`w-2 h-2 rounded-full ${
-                          fac.status === 'Active'
-                            ? 'bg-emerald-500'
-                            : fac.status === 'Away'
-                            ? 'bg-rose-500'
-                            : fac.status === 'Available'
-                            ? 'bg-emerald-400'
-                            : 'bg-slate-400'
-                        }`}
-                      ></span>
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                       <span className="font-bold text-slate-800">{fac.name}</span>
                     </div>
-                    <p className="text-[11px] text-slate-400 ml-3.5">{fac.location}</p>
+                    <p className="text-[11px] text-slate-400 ml-3.5">
+                      Subjects: {fac.subjects.join(', ')}
+                    </p>
                   </div>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                      fac.status === 'Active'
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : fac.status === 'Away'
-                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                        : fac.status === 'Available'
-                        ? 'bg-slate-100 text-slate-700'
-                        : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    {fac.status}
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    Load: {fac.load}/{fac.max_load} hrs
                   </span>
                 </div>
               ))}
@@ -315,42 +338,32 @@ export const ScheduleView: React.FC = () => {
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 text-sm">Rooms &amp; Labs</h3>
               <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                98% Normal
+                Live Status
               </span>
             </div>
 
             <div className="mt-3.5 space-y-3">
-              {roomStatuses.map((rm) => (
-                <div key={rm.name} className="flex items-center justify-between text-xs">
+              {roomList.map((rm) => (
+                <div key={rm.id} className="flex items-center justify-between text-xs">
                   <div>
                     <div className="flex items-center space-x-1.5">
                       <span
-                        className={`w-2 h-2 rounded-full ${
-                          rm.status === 'In Use'
-                            ? 'bg-blue-500'
-                            : rm.status === 'Locked'
-                            ? 'bg-rose-500'
-                            : rm.status === 'Available'
-                            ? 'bg-emerald-500'
-                            : 'bg-slate-400'
-                        }`}
+                        className={`w-2 h-2 rounded-full ${rm.free ? 'bg-emerald-500' : 'bg-blue-500'}`}
                       ></span>
                       <span className="font-bold text-slate-800">{rm.name}</span>
                     </div>
-                    <p className="text-[11px] text-slate-400 ml-3.5">{rm.note}</p>
+                    <p className="text-[11px] text-slate-400 ml-3.5">
+                      {rm.kind} • Cap: {rm.capacity}
+                    </p>
                   </div>
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                      rm.status === 'In Use'
-                        ? 'bg-blue-50 text-blue-700'
-                        : rm.status === 'Locked'
-                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                        : rm.status === 'Available'
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : 'bg-slate-100 text-slate-600'
+                      rm.free
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-blue-50 text-blue-700'
                     }`}
                   >
-                    {rm.status}
+                    {rm.free ? 'Available' : 'Occupied'}
                   </span>
                 </div>
               ))}
@@ -370,7 +383,7 @@ export const ScheduleView: React.FC = () => {
             </button>
 
             <button
-              onClick={() => alert('Downloading official CSE-A schedule timetable PDF...')}
+              onClick={() => alert(`Downloading official ${selectedSection} timetable PDF...`)}
               className="w-full py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center space-x-2"
             >
               <Download className="w-3.5 h-3.5" />
@@ -397,7 +410,7 @@ export const ScheduleView: React.FC = () => {
             <span>No schedule conflicts remaining</span>
           </span>
           <span className="text-slate-300">•</span>
-          <span>Attendance: 94.2%</span>
+          <span>SLA: 100% attendance compliance</span>
         </div>
 
         <div className="flex items-center space-x-1.5 text-emerald-700 font-semibold">

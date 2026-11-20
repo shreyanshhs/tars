@@ -6,6 +6,8 @@ import {
   CheckCircle2,
   Send,
   Wrench,
+  Check,
+  X,
 } from 'lucide-react';
 
 export const AdminConsoleView: React.FC = () => {
@@ -16,18 +18,24 @@ export const AdminConsoleView: React.FC = () => {
     isReplanRunning,
     relocationDiff,
     triggerTarsReplan,
-    nudgeAllFaculty,
+    decisions,
+    handleApproveDecision,
+    handleRejectDecision,
+    stats,
+    autoReplansCount,
+    ticketRaised,
+    setTicketRaised,
     facultyNudgeTriggered,
-    kpiStats,
+    nudgeAllFaculty,
   } = useTars();
 
   const [blastRadiusModal, setBlastRadiusModal] = useState(false);
-  const [ticketRaised, setTicketRaised] = useState(false);
 
   const presets = [
-    { label: '+ Quick Room Lockout', text: 'Room 302 locked out due to projector optical handshake failure.' },
-    { label: '+ Equipment Failure', text: 'Hardware Lab 1 FPGA benches down for scheduled circuit calibration.' },
-    { label: '+ Surprise Guest Lecture', text: 'Guest Lecture by Google DeepMind researcher scheduled for 15:00 PM.' },
+    { label: '+ Dr. Rao Absent (Demo)', text: 'Dr. Ananya Rao absent MON (P1-P2) due to fever' },
+    { label: '+ Quick Room Lockout', text: 'Room 102 locked out due to projector optical handshake failure.' },
+    { label: '+ Equipment Failure', text: 'Tech Lab 1 workstations down for scheduled circuit calibration.' },
+    { label: '+ Surprise Guest Lecture', text: 'Guest Lecture by Google DeepMind researcher scheduled for 14:40 PM.' },
   ];
 
   const handlePresetClick = (presetText: string) => {
@@ -64,7 +72,7 @@ export const AdminConsoleView: React.FC = () => {
 
       {/* 4 Core KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* KPI 1 */}
+        {/* KPI 1: Auto Re-plans */}
         <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold uppercase tracking-wider">
             <span>Auto Re-plans (30D)</span>
@@ -73,7 +81,7 @@ export const AdminConsoleView: React.FC = () => {
             </span>
           </div>
           <div className="mt-3 flex items-baseline space-x-2">
-            <span className="text-3xl font-extrabold text-slate-900 tracking-tight">{kpiStats.autoReplans}</span>
+            <span className="text-3xl font-extrabold text-slate-900 tracking-tight">{autoReplansCount}</span>
             <span className="text-xs font-semibold text-emerald-600">+12 vs. prev</span>
           </div>
           <div className="mt-3 pt-2 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
@@ -82,7 +90,7 @@ export const AdminConsoleView: React.FC = () => {
           </div>
         </div>
 
-        {/* KPI 2 */}
+        {/* KPI 2: Classes Lost */}
         <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold uppercase tracking-wider">
             <span>Classes Lost</span>
@@ -91,7 +99,7 @@ export const AdminConsoleView: React.FC = () => {
             </span>
           </div>
           <div className="mt-3 flex items-baseline space-x-2">
-            <span className="text-3xl font-extrabold text-slate-900 tracking-tight">{kpiStats.classesLost}</span>
+            <span className="text-3xl font-extrabold text-slate-900 tracking-tight">{stats.classes_lost}</span>
             <span className="text-xs font-medium text-slate-400">/ 1,480 total</span>
           </div>
           <div className="mt-3 pt-2 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
@@ -100,7 +108,7 @@ export const AdminConsoleView: React.FC = () => {
           </div>
         </div>
 
-        {/* KPI 3 */}
+        {/* KPI 3: Nudges Acted On */}
         <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold uppercase tracking-wider">
             <span>Nudges Acted On</span>
@@ -109,16 +117,16 @@ export const AdminConsoleView: React.FC = () => {
             </span>
           </div>
           <div className="mt-3 flex items-baseline space-x-2">
-            <span className="text-3xl font-extrabold text-slate-900 tracking-tight">{kpiStats.nudgesActedOn}</span>
+            <span className="text-3xl font-extrabold text-slate-900 tracking-tight">{stats.nudges_acted}</span>
             <span className="text-xs font-semibold text-indigo-600">84.8% conv</span>
           </div>
           <div className="mt-3 pt-2 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
             <span>Response latency</span>
-            <span className="font-semibold text-slate-700">&lt; 32 min window</span>
+            <span className="font-semibold text-slate-700">{stats.avg_response_s}s avg window</span>
           </div>
         </div>
 
-        {/* KPI 4 */}
+        {/* KPI 4: Recovered >75% Attendance */}
         <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold uppercase tracking-wider">
             <span>Recovered &gt;75% Att.</span>
@@ -127,8 +135,8 @@ export const AdminConsoleView: React.FC = () => {
             </span>
           </div>
           <div className="mt-3 flex items-baseline space-x-2">
-            <span className="text-3xl font-extrabold text-slate-900 tracking-tight">{kpiStats.recoveredAtt}</span>
-            <span className="text-xs font-medium text-slate-400">students flagged</span>
+            <span className="text-3xl font-extrabold text-slate-900 tracking-tight">{stats.rescued}</span>
+            <span className="text-xs font-medium text-slate-400">sections flagged</span>
           </div>
           <div className="mt-3 pt-2 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
             <span>At-risk protocol</span>
@@ -151,7 +159,7 @@ export const AdminConsoleView: React.FC = () => {
               <div className="flex items-center space-x-2 text-xs">
                 <span className="text-slate-500 font-medium">Manual Override</span>
                 <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold text-[10px] border border-emerald-200">
-                  WhatsApp Webhook
+                  Telegram &amp; Webhook
                 </span>
               </div>
             </div>
@@ -223,7 +231,7 @@ export const AdminConsoleView: React.FC = () => {
                   • 1 faculty absence affects <strong>124 students</strong> across CSE-A &amp; CSE-C.
                 </div>
                 <div className="text-slate-600">
-                  • Relocation to 14:00 PM requires shifting open lab time. Zero elective clashes.
+                  • Relocation requires substitute with load &lt; 18 hrs. Prof. Vikram Joshi matched.
                 </div>
               </div>
             )}
@@ -240,7 +248,7 @@ export const AdminConsoleView: React.FC = () => {
                 <span className="text-slate-500">•</span>
                 <span className="text-slate-400">Constraints Solved (14)</span>
                 <span className="text-slate-500">•</span>
-                <span className="text-slate-400">Telemetry</span>
+                <span className="text-slate-400">SSE Feed</span>
               </div>
 
               <div className="flex items-center space-x-2">
@@ -341,11 +349,62 @@ export const AdminConsoleView: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Audit Log Decisions Section */}
+          {decisions.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-3">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h3 className="font-bold text-slate-900 text-sm">HOD Decisions &amp; Audit Log</h3>
+                <span className="text-[11px] text-slate-400 font-mono">GET /decisions</span>
+              </div>
+
+              <div className="space-y-3">
+                {decisions.map((dec) => (
+                  <div
+                    key={dec.id}
+                    className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2 text-xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-bold text-slate-900">Decision #{dec.id}</span>
+                        <span className="px-2 py-0.2 rounded-full font-semibold text-[10px] bg-purple-50 text-purple-700 border border-purple-200">
+                          {dec.status}
+                        </span>
+                      </div>
+                      <span className="font-mono text-slate-400 text-[10px]">{dec.created_at}</span>
+                    </div>
+
+                    <p className="font-medium text-slate-800">{dec.summary}</p>
+                    <p className="text-slate-500 text-[11px] leading-relaxed">{dec.reasoning}</p>
+
+                    {(dec.status === 'proposed' || dec.status === 'escalated') && (
+                      <div className="pt-2 flex items-center space-x-2">
+                        <button
+                          onClick={() => handleApproveDecision(dec.id)}
+                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold flex items-center space-x-1 text-xs"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Approve Proposal</span>
+                        </button>
+                        <button
+                          onClick={() => handleRejectDecision(dec.id)}
+                          className="px-3 py-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 rounded-lg font-semibold flex items-center space-x-1 text-xs"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span>Reject</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right 4 Columns: Operational Intel, Pending Actions, Heatmap */}
         <div className="lg:col-span-4 space-y-6">
-          {/* Operational Intel */}
+          {/* Operational Intel (Local simulation) */}
           <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-3">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 text-sm">Operational Intel</h3>
@@ -355,7 +414,7 @@ export const AdminConsoleView: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <h4 className="font-bold text-slate-900 text-xs">ROOM 302 Caused 6 of 38 Reschedules</h4>
+              <h4 className="font-bold text-slate-900 text-xs">ROOM 102 Caused 6 of 38 Reschedules</h4>
               <p className="text-[11px] text-slate-500 leading-relaxed">
                 Recurring hardware fault: HDMI / Ceiling Projector optical handshake fails consistently on Tuesday &amp;
                 Friday afternoons.
@@ -373,16 +432,11 @@ export const AdminConsoleView: React.FC = () => {
                 <Wrench className="w-3 h-3" />
                 <span>{ticketRaised ? 'Ticket #8843 Raised ✓' : 'Raise Repair Ticket'}</span>
               </button>
-              <button
-                onClick={() => alert('Viewing diagnostic hardware logs for Room 302...')}
-                className="text-xs font-semibold text-slate-500 hover:text-slate-800"
-              >
-                Logs →
-              </button>
+              <span className="text-[10px] text-slate-400 font-medium">Local Simulation</span>
             </div>
           </div>
 
-          {/* Pending Actions */}
+          {/* Pending Actions (Local simulation) */}
           <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-3">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 text-sm">Pending Actions</h3>
@@ -427,21 +481,15 @@ export const AdminConsoleView: React.FC = () => {
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>
-                  {facultyNudgeTriggered ? 'Dispatched WhatsApp & Email Nudges ✓' : '▶ Nudge all 5 via WhatsApp & Email'}
+                  {facultyNudgeTriggered
+                    ? 'Dispatched WhatsApp & Email Nudges ✓'
+                    : '▶ Nudge all 5 via WhatsApp & Email'}
                 </span>
               </button>
-              <div className="text-center">
-                <button
-                  onClick={() => alert('Template: "Dear Faculty, reminder to upload internal marks before Nov 22 to prevent institutional accreditation penalty."')}
-                  className="text-[11px] text-slate-500 hover:text-slate-800 hover:underline"
-                >
-                  Preview Automated Nudge Template
-                </button>
-              </div>
             </div>
           </div>
 
-          {/* Room Disruption Heatmap */}
+          {/* Room Disruption Heatmap (Local UI) */}
           <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-3">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 text-sm">Room Disruption Heatmap</h3>
@@ -461,12 +509,11 @@ export const AdminConsoleView: React.FC = () => {
               </div>
 
               {[
-                { name: 'RM 1', vals: [0, 1, 0, 0, 1, 0] },
-                { name: 'RM 2', vals: [1, 0, 2, 0, 0, 0] },
-                { name: 'RM 3', vals: [2, 7, 1, 2, 8, 0] }, // Room 302 critical hotspot
-                { name: 'RM 4', vals: [0, 0, 1, 0, 0, 0] },
-                { name: 'Lab 1', vals: [0, 1, 0, 0, 0, 0] },
-                { name: 'Audi 1', vals: [0, 0, 0, 1, 0, 0] },
+                { name: 'R101', vals: [0, 1, 0, 0, 1, 0] },
+                { name: 'R102', vals: [2, 7, 1, 2, 8, 0] }, // Projector fault
+                { name: 'R104', vals: [0, 0, 1, 0, 0, 0] },
+                { name: 'LAB1', vals: [0, 1, 0, 0, 0, 0] },
+                { name: 'AUDI', vals: [0, 0, 0, 1, 0, 0] },
               ].map((row) => (
                 <div key={row.name} className="grid grid-cols-7 gap-1 items-center">
                   <div className="font-mono text-[10px] text-slate-500">{row.name}</div>
@@ -501,7 +548,7 @@ export const AdminConsoleView: React.FC = () => {
                 <span className="w-2 h-2 rounded bg-amber-300"></span>
                 <span className="w-2 h-2 rounded bg-rose-500"></span>
               </div>
-              <span className="text-rose-600 font-bold">8+ (Critical Hotspot)</span>
+              <span className="text-rose-600 font-bold">8+ (Critical)</span>
             </div>
           </div>
         </div>

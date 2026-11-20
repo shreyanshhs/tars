@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTars } from '../../context/TarsContext';
-import type { ViewTab, Role } from '../../types/tars';
+import type { ViewTab } from '../../types/tars';
 import {
   Sun,
   Bell,
@@ -12,10 +12,20 @@ import {
   HelpCircle,
   ChevronDown,
   ArrowRightLeft,
+  Server,
 } from 'lucide-react';
 
 export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { role, setRole, currentView, setCurrentView, unreadNudgesCount } = useTars();
+  const {
+    isMockMode,
+    currentUser,
+    demoUsers,
+    switchUser,
+    role,
+    currentView,
+    setCurrentView,
+    unreadNudgesCount,
+  } = useTars();
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -28,21 +38,12 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
   ];
 
   const handleSelectTab = (id: ViewTab) => {
-    if (id === 'admin' && role !== 'hod') {
-      // Auto-switch to HOD role when admin console is chosen, or just open it
-      setRole('hod');
-    }
     setCurrentView(id);
   };
 
-  const handleSwitchRole = (newRole: Role) => {
-    setRole(newRole);
+  const handleSelectUser = async (userId: string) => {
+    await switchUser(userId);
     setRoleMenuOpen(false);
-    if (newRole === 'hod') {
-      setCurrentView('admin');
-    } else {
-      setCurrentView('today');
-    }
   };
 
   return (
@@ -101,7 +102,7 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
               <button
                 disabled
                 className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium text-slate-400 cursor-not-allowed opacity-60"
-                title="Settings (Out of scope for prototype)"
+                title="Settings (Out of scope)"
               >
                 <div className="flex items-center space-x-2.5">
                   <Settings className="w-4 h-4 text-slate-300" />
@@ -113,12 +114,18 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
           </div>
         </div>
 
-        {/* User Card & Role Switcher */}
+        {/* User Card & Demo Persona Switcher */}
         <div className="p-3 border-t border-slate-100 relative">
           <div className="text-[10px] font-bold tracking-wider uppercase text-slate-400 px-2 pb-1.5 flex items-center justify-between">
-            <span>Demo Mode</span>
-            <span className="text-indigo-600 font-semibold cursor-pointer hover:underline" onClick={() => handleSwitchRole(role === 'student' ? 'hod' : 'student')}>
-              Switch Role ⇄
+            <span className="flex items-center space-x-1">
+              <Server className="w-3 h-3 text-slate-400" />
+              <span>{isMockMode ? 'Mock Mode' : 'API Mode'}</span>
+            </span>
+            <span
+              className="text-indigo-600 font-semibold cursor-pointer hover:underline"
+              onClick={() => setRoleMenuOpen(!roleMenuOpen)}
+            >
+              Switch User ⇄
             </span>
           </div>
 
@@ -129,17 +136,15 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
             <div className="flex items-center space-x-2.5 min-w-0">
               <div
                 className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs text-white shadow-xs ${
-                  role === 'student' ? 'bg-indigo-600' : 'bg-purple-600'
+                  role === 'hod' ? 'bg-purple-600' : role === 'faculty' ? 'bg-teal-600' : 'bg-indigo-600'
                 }`}
               >
-                {role === 'student' ? 'SV' : 'VS'}
+                {currentUser.name.slice(0, 2).toUpperCase()}
               </div>
               <div className="min-w-0 text-left">
-                <div className="text-xs font-bold text-slate-800 truncate">
-                  {role === 'student' ? 'Shreyansh' : 'Dr. V. Sharma'}
-                </div>
+                <div className="text-xs font-bold text-slate-800 truncate">{currentUser.name}</div>
                 <div className="text-[10px] text-slate-500 truncate">
-                  {role === 'student' ? 'CSE - 1st yr - Sec A' : 'HOD Computer Science'}
+                  {currentUser.role.toUpperCase()} {currentUser.section ? `• ${currentUser.section}` : ''}
                 </div>
               </div>
             </div>
@@ -148,36 +153,43 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
 
           {/* Role switcher menu */}
           {roleMenuOpen && (
-            <div className="absolute bottom-16 left-3 right-3 bg-white rounded-xl shadow-xl border border-slate-200 p-1.5 z-50">
-              <div className="text-[11px] font-semibold text-slate-400 px-2 py-1">Select Persona</div>
-              <button
-                onClick={() => handleSwitchRole('student')}
-                className={`w-full flex items-center space-x-2 px-2.5 py-2 rounded-lg text-xs font-medium ${
-                  role === 'student' ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-700'
-                }`}
-              >
-                <div className="w-5 h-5 rounded bg-indigo-600 text-white text-[10px] flex items-center justify-center font-bold">
-                  SV
-                </div>
-                <div className="text-left">
-                  <div className="font-semibold">Student: Shreyansh</div>
-                  <div className="text-[10px] text-slate-500">CSE - 1st yr - Sec A</div>
-                </div>
-              </button>
-              <button
-                onClick={() => handleSwitchRole('hod')}
-                className={`w-full flex items-center space-x-2 px-2.5 py-2 rounded-lg text-xs font-medium mt-1 ${
-                  role === 'hod' ? 'bg-purple-50 text-purple-700' : 'hover:bg-slate-50 text-slate-700'
-                }`}
-              >
-                <div className="w-5 h-5 rounded bg-purple-600 text-white text-[10px] flex items-center justify-center font-bold">
-                  VS
-                </div>
-                <div className="text-left">
-                  <div className="font-semibold">HOD: Dr. V. Sharma</div>
-                  <div className="text-[10px] text-slate-500">Admin Mission Control</div>
-                </div>
-              </button>
+            <div className="absolute bottom-16 left-3 right-3 bg-white rounded-xl shadow-xl border border-slate-200 p-1.5 z-50 max-h-72 overflow-y-auto">
+              <div className="text-[11px] font-semibold text-slate-400 px-2 py-1 flex items-center justify-between">
+                <span>Select Demo Account</span>
+                <span className="text-[10px] font-mono">{demoUsers.length} users</span>
+              </div>
+              {demoUsers.map((u) => {
+                const isSelected = u.user_id === currentUser.user_id;
+                return (
+                  <button
+                    key={u.user_id}
+                    onClick={() => handleSelectUser(u.user_id)}
+                    className={`w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg text-xs font-medium my-0.5 text-left transition-colors ${
+                      isSelected
+                        ? 'bg-indigo-50 text-indigo-700 font-bold'
+                        : 'hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <div
+                      className={`w-6 h-6 rounded text-white text-[10px] flex items-center justify-center font-bold flex-shrink-0 ${
+                        u.role === 'hod'
+                          ? 'bg-purple-600'
+                          : u.role === 'faculty'
+                          ? 'bg-teal-600'
+                          : 'bg-indigo-600'
+                      }`}
+                    >
+                      {u.user_id}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold">{u.name}</div>
+                      <div className="text-[10px] text-slate-400 truncate">
+                        {u.role.toUpperCase()} {u.section ? `(${u.section})` : ''} {u.usn ? `• ${u.usn}` : ''}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -217,13 +229,28 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
             </div>
             <span className="text-slate-300">•</span>
 
-            {/* Quick role toggle pill in topbar */}
+            {/* Mode badge pill */}
+            <div
+              className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
+                isMockMode
+                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}
+              title={isMockMode ? 'Running in offline client mock mode' : 'Connected to API'}
+            >
+              {isMockMode ? 'Mock Mode (Default)' : 'API Mode'}
+            </div>
+
+            {/* Quick role toggle button */}
             <button
-              onClick={() => handleSwitchRole(role === 'student' ? 'hod' : 'student')}
+              onClick={() => {
+                const nextUser = role === 'student' ? 'H01' : 'S001';
+                handleSelectUser(nextUser);
+              }}
               className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-[11px] font-semibold border border-slate-200 transition-colors"
             >
               <ArrowRightLeft className="w-3 h-3" />
-              <span>Role: {role === 'student' ? 'Student' : 'HOD / Admin'}</span>
+              <span>Role: {currentUser.role.toUpperCase()}</span>
             </button>
 
             {/* Notification Bell */}
@@ -245,10 +272,10 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
             {/* Avatar circle */}
             <div
               className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-xs ${
-                role === 'student' ? 'bg-indigo-600' : 'bg-purple-600'
+                role === 'hod' ? 'bg-purple-600' : role === 'faculty' ? 'bg-teal-600' : 'bg-indigo-600'
               }`}
             >
-              {role === 'student' ? 'S' : 'V'}
+              {currentUser.name[0]}
             </div>
           </div>
         </header>
