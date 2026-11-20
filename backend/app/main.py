@@ -7,15 +7,17 @@ from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from . import actions, agent, bus, tools
 from .db import DAYS, fetch_slots, get_db
-from .models import (AttendanceItem, Day, Decision, ErrorResponse, Event, LoginRequest, Nudge,
-                     Room, Slot, Stats, Today, User)
+from .models import (AttendanceItem, Day, Decision, ErrorResponse, Event, IncidentAccepted,
+                     IncidentRequest, LoginRequest, Nudge, Room, Slot, Stats, Today, User)
+from .validator import ClashError
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")  # repo-root .env; fine if missing
 
@@ -34,9 +36,11 @@ ERROR_CODES = {401: "unauthorized", 403: "forbidden", 404: "not_found", 409: "cl
 
 @app.exception_handler(StarletteHTTPException)
 async def http_error(_: Request, exc: StarletteHTTPException):
-    return JSONResponse(status_code=exc.status_code,
-                        content={"error": ERROR_CODES.get(exc.status_code, "error"), "detail": str(exc.detail)},
-                        headers=getattr(exc, "headers", None))
+    if isinstance(exc.detail, dict):  # raise HTTPException(409, {"error": "invalid_state", "detail": ...})
+        content = exc.detail
+    else:
+        content = {"error": ERROR_CODES.get(exc.status_code, "error"), "detail": str(exc.detail)}
+    return JSONResponse(status_code=exc.status_code, content=content, headers=getattr(exc, "headers", None))
 
 
 @app.exception_handler(RequestValidationError)
@@ -177,7 +181,7 @@ def stats(_: User = Depends(require_hod), con: sqlite3.Connection = Depends(get_
     one = lambda sql: con.execute(sql).fetchone()[0]
     return {
         "classes_lost": one("SELECT COUNT(*) FROM slots WHERE status = 'cancelled'"),
-        "rescued": one("SELECT COUNT(*) FROM decisions WHERE status IN ('committed','acknowledged')"),
+        "rescued": one("SELECT COUNT(*) FROM decisions WHERE status IN ('committed','pending_ack','acknowledged')"),
         "nudges_acted": one("SELECT COUNT(*) FROM nudges WHERE read = 1"),
         "avg_response_s": 0,  # filled in once the agent records timings
     }
@@ -205,6 +209,94 @@ def events(section: Optional[str] = None, user: User = Depends(current_user),
                    if s["day"] == e["day"] and s["start"] < e["end"] and e["start"] < s["end"]]
         out.append({**dict(e), "clashes_with": clashes})
     return out
+
+
+# ---------- mutations ----------
+STAFF_ERRORS = {**HOD_ERRORS, 422: {"model": ErrorResponse}}
+STATE_ERRORS = {**HOD_ERRORS, 404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}}
+
+
+@api.post("/incidents", status_code=202, response_model=IncidentAccepted, responses=STAFF_ERRORS,
+          tags=["admin"])
+def create_incident(body: IncidentRequest, bg: BackgroundTasks, user: User = Depends(require_staff),
+                    con: sqlite3.Connection = Depends(get_db)):
+    if body.type == "absence":
+        if not body.faculty_id or con.execute("SELECT 1 FROM faculty WHERE id = ?", (body.faculty_id,)).fetchone() is None:
+            raise HTTPException(422, "absence needs a valid faculty_id")
+    elif not body.room_id or con.execute("SELECT 1 FROM rooms WHERE id = ?", (body.room_id,)).fetchone() is None:
+        raise HTTPException(422, "room_unavailable needs a valid room_id")
+    periods = sorted(set(body.periods))
+    if not periods or any(p not in range(1, 7) for p in periods):
+        raise HTTPException(422, "periods must be a non-empty list of 1..6")
+    slots = agent.affected_slots(con, body.type, body.day, periods, body.faculty_id, body.room_id)
+    if not slots:
+        raise HTTPException(422, "No scheduled classes are affected by this incident")
+
+    with con:
+        inc = con.execute("INSERT INTO incidents (type, reported_by, faculty_id, room_id, day, periods, note) "
+                          "VALUES (?,?,?,?,?,?,?)",
+                          (body.type, user.user_id, body.faculty_id if body.type == "absence" else None,
+                           body.room_id if body.type == "room_unavailable" else None,
+                           body.day, json.dumps(periods), body.note)).lastrowid
+    d = tools.log_decision(body.type, "TARS is working on it…", None, [s["id"] for s in slots],
+                           status="proposed", incident_id=inc, con=con)
+    bus.publish("decision_updated", d, user_ids=[user.user_id])
+    bg.add_task(agent.run_incident, inc, d["id"])
+    return {"incident_id": inc, "decision_id": d["id"], "status": "agent_running"}
+
+
+def _decision_row(con: sqlite3.Connection, decision_id: int) -> sqlite3.Row:
+    row = con.execute("SELECT d.*, i.reported_by FROM decisions d LEFT JOIN incidents i ON i.id = d.incident_id "
+                      "WHERE d.id = ?", (decision_id,)).fetchone()
+    if row is None:
+        raise HTTPException(404, f"No decision {decision_id}")
+    return row
+
+
+def _invalid_state(row: sqlite3.Row, action: str):
+    raise HTTPException(409, {"error": "invalid_state",
+                              "detail": f"Decision {row['id']} is '{row['status']}' and cannot be {action}"})
+
+
+@api.post("/decisions/{decision_id}/approve", response_model=Decision, responses=STATE_ERRORS, tags=["admin"])
+def approve_decision(decision_id: int, _: User = Depends(require_hod), con: sqlite3.Connection = Depends(get_db)):
+    """proposed (with pending changes) → apply them → committed; pending_ack / escalated → acknowledged."""
+    row = _decision_row(con, decision_id)
+    if row["status"] == "proposed" and row["changes"]:
+        try:
+            actions.apply_changes(con, json.loads(row["changes"]))
+        except ClashError as e:
+            raise HTTPException(409, {"error": "clash", "detail": str(e)})
+        d = tools.update_decision(decision_id, con=con, status="committed", changes=None)
+    elif row["status"] in ("pending_ack", "escalated"):
+        d = tools.update_decision(decision_id, con=con, status="acknowledged")
+    else:
+        _invalid_state(row, "approved")
+    bus.publish("decision_updated", d, user_ids=[row["reported_by"]])
+    return d
+
+
+@api.post("/decisions/{decision_id}/reject", response_model=Decision, responses=STATE_ERRORS, tags=["admin"])
+def reject_decision(decision_id: int, _: User = Depends(require_hod), con: sqlite3.Connection = Depends(get_db)):
+    """proposed (with pending changes) or escalated → rejected. Nothing is applied."""
+    row = _decision_row(con, decision_id)
+    if not ((row["status"] == "proposed" and row["changes"]) or row["status"] == "escalated"):
+        _invalid_state(row, "rejected")
+    d = tools.update_decision(decision_id, con=con, status="rejected", changes=None)
+    bus.publish("decision_updated", d, user_ids=[row["reported_by"]])
+    return d
+
+
+@api.post("/nudges/{nudge_id}/read", response_model=Nudge,
+          responses={**AUTH_ERRORS, 404: {"model": ErrorResponse}}, tags=["nudges"])
+def read_nudge(nudge_id: int, user: User = Depends(current_user), con: sqlite3.Connection = Depends(get_db)):
+    with con:
+        n = con.execute("UPDATE nudges SET read = 1 WHERE id = ? AND user_id = ?", (nudge_id, user.user_id)).rowcount
+    if not n:
+        raise HTTPException(404, f"No nudge {nudge_id} for you")
+    r = con.execute("SELECT id, user_id, kind, title, body, created_at, read FROM nudges WHERE id = ?",
+                    (nudge_id,)).fetchone()
+    return {**dict(r), "read": bool(r["read"])}
 
 
 app.include_router(api)

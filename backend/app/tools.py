@@ -173,6 +173,35 @@ def log_decision(trigger: str, summary: str, reasoning: str, affected_slot_ids: 
                             "affected_slot_ids, status) VALUES (?,?,?,?,?,?)",
                             (incident_id, trigger, summary, reasoning,
                              json.dumps([int(i) for i in affected_slot_ids]), status))
+        return get_decision(cur.lastrowid, con=c)
+
+
+def get_decision(decision_id: int, con: Optional[sqlite3.Connection] = None) -> Optional[dict]:
+    """Decision in contract shape, or None."""
+    with use_db(con) as c:
         r = c.execute("SELECT id, created_at, trigger, summary, reasoning, affected_slot_ids, status "
-                      "FROM decisions WHERE id = ?", (cur.lastrowid,)).fetchone()
-    return {**dict(r), "affected_slot_ids": json.loads(r["affected_slot_ids"])}
+                      "FROM decisions WHERE id = ?", (decision_id,)).fetchone()
+    if r is None:
+        return None
+    return {**dict(r), "affected_slot_ids": json.loads(r["affected_slot_ids"] or "[]")}
+
+
+DECISION_FIELDS = {"summary", "reasoning", "affected_slot_ids", "status", "changes"}
+
+
+def update_decision(decision_id: int, con: Optional[sqlite3.Connection] = None, **fields) -> dict:
+    """Update an existing decision (summary/reasoning/affected_slot_ids/status/changes)."""
+    bad = set(fields) - DECISION_FIELDS
+    if bad:
+        raise ValueError(f"not updatable: {sorted(bad)}")
+    if "status" in fields and fields["status"] not in DECISION_STATUSES:
+        raise ValueError(f"invalid status {fields['status']!r}")
+    for k in ("affected_slot_ids", "changes"):
+        if k in fields and fields[k] is not None:
+            fields[k] = json.dumps(fields[k])
+    with use_db(con) as c:
+        if fields:
+            with c:
+                c.execute(f"UPDATE decisions SET {', '.join(f'{k} = ?' for k in fields)} WHERE id = ?",
+                          (*fields.values(), decision_id))
+        return get_decision(decision_id, con=c)

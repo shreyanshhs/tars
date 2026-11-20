@@ -62,7 +62,7 @@ CREATE TABLE incidents (
   type TEXT NOT NULL,
   reported_by TEXT NOT NULL REFERENCES users(id),
   faculty_id TEXT, room_id TEXT, day TEXT, periods TEXT, note TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime'))
 );
 
 CREATE TABLE decisions (
@@ -73,7 +73,8 @@ CREATE TABLE decisions (
   reasoning TEXT,
   affected_slot_ids TEXT,          -- JSON array
   status TEXT NOT NULL DEFAULT 'proposed',
-  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  changes TEXT,                    -- JSON list of uncommitted changes awaiting HOD approval
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime'))
 );
 
 CREATE TABLE nudges (
@@ -83,7 +84,7 @@ CREATE TABLE nudges (
   title TEXT NOT NULL,
   body TEXT,
   read INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime'))
 );
 
 CREATE TABLE events (

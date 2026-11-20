@@ -117,7 +117,7 @@ If omitted and the caller has no section (faculty/HOD): `/timetable` and `/atten
 ```
 
 ### Error body
-All errors use `{ "error": "<code>", "detail": "<text>" }` with codes `unauthorized` (401), `forbidden` (403), `not_found` (404), `validation` (422), `clash` (409).
+All errors use `{ "error": "<code>", "detail": "<text>" }` with codes `unauthorized` (401), `forbidden` (403), `not_found` (404), `validation` (422), `clash` (409), `invalid_state` (409).
 
 ### POST `/incidents`
 ```jsonc
@@ -130,7 +130,22 @@ All errors use `{ "error": "<code>", "detail": "<text>" }` with codes `unauthori
 // response 202
 { "incident_id": 5, "decision_id": 7, "status": "agent_running" }
 ```
-Errors: `403` if role is student · `409` if the clash validator blocks the final plan (body: `{ "error": "clash", "detail": "..." }`).
+Errors: `403` if role is student · `422` if the faculty/room is unknown or no scheduled class is affected.
+The agent runs in the background, so a clash found while planning can't return `409` here: the agent tries another
+option, and if it can't resolve a slot the decision ends `escalated`. Follow progress via `agent_step` / `decision_updated`.
+
+**Decision lifecycle (v0.2.1):** created as `proposed` ("TARS is working on it…") → the agent finishes with:
+`pending_ack` (a substitute was assigned; awaiting their acknowledgement) · `committed` (only moves / room changes) ·
+`proposed` (a cancellation awaits HOD approval; nothing applied yet) · `escalated` (unresolved slot or Gemini failure).
+
+### POST `/decisions/{id}/approve`  ·  POST `/decisions/{id}/reject`  (hod, v0.2.1)
+No body. Response 200: the updated Decision.
+- approve: `proposed` with a pending cancellation → applies it → `committed` (409 `clash` if it no longer fits) · `pending_ack` / `escalated` → `acknowledged`.
+- reject: `proposed` with a pending cancellation, or `escalated` → `rejected` (nothing applied).
+- Any other state → `409 { "error": "invalid_state", "detail": "..." }` (this includes a decision whose agent is still running). Unknown id → 404.
+
+### POST `/nudges/{id}/read`  (v0.2.1)
+No body. Response 200: the updated Nudge (`read: true`). Only the nudge's owner; anyone else gets 404.
 
 ### GET `/stream?user_id=<user_id>`  (Server-Sent Events)
 - **Auth:** `user_id` query param (EventSource can't set headers). Unknown id → `401`.

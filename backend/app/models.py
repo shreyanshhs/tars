@@ -91,6 +91,21 @@ class Stats(BaseModel):
     avg_response_s: float
 
 
+class IncidentRequest(BaseModel):
+    type: Literal["absence", "room_unavailable"]
+    faculty_id: Optional[str] = None
+    room_id: Optional[str] = None
+    day: Day
+    periods: list[int]
+    note: Optional[str] = None
+
+
+class IncidentAccepted(BaseModel):
+    incident_id: int
+    decision_id: int
+    status: Literal["agent_running"]
+
+
 class ErrorResponse(BaseModel):
     error: str
     detail: str
