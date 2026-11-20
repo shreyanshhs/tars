@@ -23,5 +23,23 @@ def monkeypatch_session():
     mp.undo()
 
 
+@pytest.fixture
+def db(tmp_path, monkeypatch):
+    """Fresh seeded DB per test (tools mutate it); yields an open connection."""
+    monkeypatch.setattr(seed, "DB", tmp_path / "tars.db")
+    monkeypatch.setattr(seed, "MOCK", tmp_path / "mock")
+    seed.main()
+    monkeypatch.setenv("TARS_DB", str(tmp_path / "tars.db"))
+    from app.db import connect
+    con = connect()
+    yield con
+    con.close()
+
+
+def slot_id(con, section, day, period):
+    return con.execute("SELECT id FROM slots WHERE section=? AND day=? AND period=?",
+                       (section, day, period)).fetchone()[0]
+
+
 def H(user_id):
     return {"X-User-Id": user_id}

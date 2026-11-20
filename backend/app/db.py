@@ -1,8 +1,9 @@
 """SQLite access for TARS. One connection per request; path overridable via TARS_DB (used by tests)."""
 import os
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Optional
 
 DEFAULT_DB = Path(__file__).resolve().parents[1] / "tars.db"
 DAYS = ["MON", "TUE", "WED", "THU", "FRI"]
@@ -18,6 +19,19 @@ def connect() -> sqlite3.Connection:
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
     return con
+
+
+@contextmanager
+def use_db(con: Optional[sqlite3.Connection] = None) -> Iterator[sqlite3.Connection]:
+    """Yield `con` if given, else open a connection and close it afterwards."""
+    if con is not None:
+        yield con
+        return
+    own = connect()
+    try:
+        yield own
+    finally:
+        own.close()
 
 
 def get_db() -> Iterator[sqlite3.Connection]:
