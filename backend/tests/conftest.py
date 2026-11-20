@@ -1,7 +1,13 @@
+import os
+
 import pytest
 from fastapi.testclient import TestClient
 
+import app.main  # noqa: F401  (loads .env first)
 from app import seed
+
+# Tests must never poll or message the real Telegram bot: blank the token that .env just loaded.
+os.environ["TELEGRAM_BOT_TOKEN"] = ""
 
 
 @pytest.fixture(scope="session")

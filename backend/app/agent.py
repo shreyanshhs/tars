@@ -14,7 +14,7 @@ import os
 from datetime import datetime
 from typing import Any, Optional
 
-from . import actions, bus, tools
+from . import actions, bus, notify, tools
 from .db import fetch_slots, use_db
 from .validator import ClashError, validate_clash
 
@@ -323,6 +323,24 @@ class AgentRun:
             notes.append(f"move to {c.get('day', slot['day'])} P{c.get('period', slot['period'])}")
         return f"slot {c['slot_id']}: " + ", ".join(notes)
 
+    def notify_substitutes(self) -> None:
+        """Telegram Accept/Decline to each substitute (after the final status is written, so a fast
+        Accept can't be overwritten). No-op when Telegram is off; never raises."""
+        sub_ids = sorted(sid for sid, how in self.handled.items() if how == "substituted")
+        if not sub_ids:
+            return
+        try:
+            reqs = notify.notifier.request_acks(self.decision_id, sub_ids, con=self.con)
+        except Exception:
+            log.exception("could not send Telegram ack requests")
+            return
+        if reqs:
+            sent = [r["faculty_id"] for r in reqs if r["message_id"]]
+            unsent = [r["faculty_id"] for r in reqs if not r["message_id"]]
+            self.step("act", "Telegram: asked " + (", ".join(sent) or "nobody")
+                      + f" to confirm (reply within {notify.escalation_minutes():g} min)"
+                      + (f"; not reachable: {', '.join(unsent)}" if unsent else ""), phase="dispatch")
+
     def flush_acts(self) -> None:
         for phase, text in self.pending_acts:
             self.step("act", text, phase=phase)
@@ -373,6 +391,7 @@ class AgentRun:
                                   status=status, affected_slot_ids=affected,
                                   changes=self.proposed or None)
         bus.publish("decision_updated", d, user_ids=self.audience)
+        self.notify_substitutes()
         self.step("error" if failure else "done", summary if failure else f"Decision #{d['id']}: {status}",
                   phase="escalate" if status in ("escalated", "proposed") else "dispatch")
         return d

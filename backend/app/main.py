@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sqlite3
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -16,7 +17,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from sse_starlette.sse import EventSourceResponse
 
-from . import actions, agent, bus, tools
+from . import actions, agent, bus, notify, tools
 from . import stream as sse
 from .db import DAYS, NUDGE_SELECT, fetch_slots, get_db, iso, now, nudge_dict, use_db
 from .models import (AttendanceItem, Day, Decision, ErrorResponse, Event, Faculty, FacultyUpdate,
@@ -26,7 +27,21 @@ from .validator import ClashError
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")  # repo-root .env; fine if missing
 
-app = FastAPI(title="TARS API", version="0.2.1")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Start/stop the Telegram bot + escalation scheduler. Failures are logged, never fatal."""
+    try:
+        await notify.notifier.start()
+    except Exception:
+        logging.getLogger("tars").exception("notifier failed to start")
+    yield
+    try:
+        await notify.notifier.stop()
+    except Exception:
+        logging.getLogger("tars").exception("notifier failed to stop")
+
+
+app = FastAPI(title="TARS API", version="0.2.1", lifespan=lifespan)
 # ---------- CORS ----------
 # Any port on localhost / 127.0.0.1 (Vite moves off 5173 when it's busy, e.g. to 5176).
 LOCAL_ORIGIN_REGEX = r"^http://(localhost|127\.0\.0\.1)(:\d{1,5})?$"
@@ -340,6 +355,7 @@ def approve_decision(decision_id: int, _: User = Depends(require_hod), con: sqli
         d = tools.update_decision(decision_id, con=con, status="committed", changes=None)
     elif row["status"] in ("pending_ack", "escalated"):
         d = tools.update_decision(decision_id, con=con, status="acknowledged")
+        notify.notifier.cancel_escalation(decision_id)  # HOD confirmed; no Telegram timeout needed
     else:
         _invalid_state(row, "approved")
     bus.publish("decision_updated", d, user_ids=[row["reported_by"]])

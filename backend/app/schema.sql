@@ -101,3 +101,16 @@ CREATE TABLE event_rsvps (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime')),
   PRIMARY KEY (event_id, user_id)
 );
+
+-- Telegram Accept/Decline requests to substitutes (one per substitute per decision)
+CREATE TABLE ack_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  decision_id INTEGER NOT NULL REFERENCES decisions(id),
+  faculty_id TEXT NOT NULL REFERENCES faculty(id),
+  slot_ids TEXT NOT NULL,          -- JSON array of slots they were asked to cover
+  chat_id TEXT,                    -- null if the faculty never linked Telegram
+  message_id INTEGER,              -- null if the message could not be sent
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','accepted','declined','expired')),
+  due_at TEXT NOT NULL,            -- ISO local time; no reply by then → escalate
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime'))
+);

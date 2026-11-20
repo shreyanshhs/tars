@@ -176,6 +176,11 @@ option, and if it can't resolve a slot the decision ends `escalated`. Follow pro
 `pending_ack` (a substitute was assigned; awaiting their acknowledgement) · `committed` (only moves / room changes) ·
 `proposed` (a cancellation awaits HOD approval; nothing applied yet) · `escalated` (unresolved slot or Gemini failure).
 
+**Telegram (backend-only, no API change):** when the agent assigns substitutes, each gets a Telegram message with
+Accept / Decline. `pending_ack` → `acknowledged` once **all** substitutes accept · → `escalated` on any Decline or when
+nobody replies within `ESCALATION_MINUTES` (HOD alerted on Telegram). Each change arrives as `decision_updated`, and the
+reasoning gets a line like "Escalated: F08 declined via Telegram". With no bot token, decisions stay `pending_ack` until the HOD approves.
+
 ### POST `/decisions/{id}/approve`  ·  POST `/decisions/{id}/reject`  (hod, v0.2.1)
 No body. Response 200: the updated Decision.
 - approve: `proposed` with a pending cancellation → applies it → `committed` (409 `clash` if it no longer fits) · `pending_ack` / `escalated` → `acknowledged`.

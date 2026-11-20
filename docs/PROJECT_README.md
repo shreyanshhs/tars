@@ -130,6 +130,12 @@ Copy `.env.example` to `.env` in the repo root and fill in:
 
 > ⚠️ `.env` and `service-account*.json` are gitignored. Never commit keys.
 
+**Telegram setup (2 min):** create the bot with @BotFather and put its token (looks like `123456789:AA…`, ~45 chars) in
+`TELEGRAM_BOT_TOKEN`, then start the backend (it polls; no webhook). On each phone, open the bot, send `/start`, and reply
+with your login id (`F08`, `H01`, or a USN). Link the substitute (F08, and F07 for the DS Lab) and the HOD (H01) **after**
+the final `python3 app/seed.py`, because reseeding clears the links. Without a token the backend runs normally and logs
+that Telegram is disabled.
+
 ---
 
 ## Demo scenario

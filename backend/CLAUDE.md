@@ -5,6 +5,7 @@
 - Clash validation is plain Python in `app/validator.py`, never the LLM. The DB unique indexes are the last line of defence.
 - RBAC: `X-User-Id` header → role from `users` table; students get 403 on any mutation.
 - Every agent action writes a row to `decisions` with `reasoning` and emits an `agent_step` SSE event.
+- Telegram (`app/notify.py`): polling bot started in the FastAPI lifespan; `/start` + login id links `users.telegram_chat_id`. Substitutes get Accept/Decline; APScheduler escalates after `ESCALATION_MINUTES`. No token → logged no-op. Tests blank the token (conftest) and mock the sender; never hit real Telegram in tests.
 - Tests: `pytest` must pass before each merge to main.
 
 ## Frontend integration requirements (agreed with frontend, do not break)
