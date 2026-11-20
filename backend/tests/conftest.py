@@ -8,7 +8,7 @@ from app import seed
 def client(tmp_path_factory, monkeypatch_session):
     tmp = tmp_path_factory.mktemp("tars")
     monkeypatch_session.setattr(seed, "DB", tmp / "tars.db")
-    monkeypatch_session.setattr(seed, "MOCK", tmp / "mock")  # don't overwrite frontend/mock
+    monkeypatch_session.setattr(seed, "MOCK", tmp / "mock")  # don't overwrite docs/mock
     seed.main()
     monkeypatch_session.setenv("TARS_DB", str(tmp / "tars.db"))
     monkeypatch_session.setenv("DEMO_DAY", "MON")

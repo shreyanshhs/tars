@@ -1,0 +1,86 @@
+[
+  {
+    "user_id": "S001",
+    "usn": "1AB25CS001",
+    "name": "Shreyansh",
+    "role": "student",
+    "section": "CSE-A"
+  },
+  {
+    "user_id": "S002",
+    "usn": "1AB25CS002",
+    "name": "Aditi",
+    "role": "student",
+    "section": "CSE-B"
+  },
+  {
+    "user_id": "S003",
+    "usn": "1AB25CS003",
+    "name": "Rohan",
+    "role": "student",
+    "section": "CSE-C"
+  },
+  {
+    "user_id": "H01",
+    "usn": null,
+    "name": "HOD (CSE)",
+    "role": "hod",
+    "section": null
+  },
+  {
+    "user_id": "F01",
+    "usn": null,
+    "name": "Dr. Ananya Rao",
+    "role": "faculty",
+    "section": null
+  },
+  {
+    "user_id": "F02",
+    "usn": null,
+    "name": "Prof. Kiran Kumar",
+    "role": "faculty",
+    "section": null
+  },
+  {
+    "user_id": "F03",
+    "usn": null,
+    "name": "Dr. Meera Iyer",
+    "role": "faculty",
+    "section": null
+  },
+  {
+    "user_id": "F04",
+    "usn": null,
+    "name": "Prof. Rahul Nair",
+    "role": "faculty",
+    "section": null
+  },
+  {
+    "user_id": "F05",
+    "usn": null,
+    "name": "Dr. Sneha Patil",
+    "role": "faculty",
+    "section": null
+  },
+  {
+    "user_id": "F06",
+    "usn": null,
+    "name": "Prof. Arjun Shetty",
+    "role": "faculty",
+    "section": null
+  },
+  {
+    "user_id": "F07",
+    "usn": null,
+    "name": "Dr. Farah Khan",
+    "role": "faculty",
+    "section": null
+  },
+  {
+    "user_id": "F08",
+    "usn": null,
+    "name": "Prof. Vikram Joshi",
+    "role": "faculty",
+    "section": null
+  }
+]

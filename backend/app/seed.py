@@ -1,5 +1,5 @@
 """
-TARS seed: builds tars.db (clash-free timetable) and exports mock JSON for the frontend.
+TARS seed: builds tars.db (clash-free timetable) and exports mock JSON for the frontend to docs/mock/.
 All data (names, rooms, subjects, assignments, attendance, events) lives in seed_data.json:
 edit that file, never this one. Run from the repo root:   python3 backend/app/seed.py
 Uses only the Python standard library.
@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DB = ROOT / "backend" / "tars.db"
 SCHEMA = Path(__file__).with_name("schema.sql")
 DATA = Path(__file__).with_name("seed_data.json")
-MOCK = ROOT / "frontend" / "mock"
+MOCK = ROOT / "docs" / "mock"  # mock API responses for the frontend (backend never writes into frontend/)
 DAYS = ["MON", "TUE", "WED", "THU", "FRI"]
 
 

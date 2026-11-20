@@ -16,4 +16,5 @@ Services: `schedule.ts`, `attendance.ts`, `events.ts`, `nudges.ts`, `admin.ts`, 
 4. `/openapi.json` must be accurate. Frontend generates TS types with `npx openapi-typescript`. Give models stable names (Slot, Decision, Nudge, Event, User, LoginRequest, Stats).
 5. `/auth/login`, `/auth/demo-users`, `/me`; all other endpoints read `X-User-Id` (missing/unknown → 401, student mutation → 403).
 6. `/stream?user_id=`: SSE with events `timetable_updated`, `decision_updated`, `nudge_created`, `agent_step`, `ping` (every 15 s), payloads exactly as in the contract.
+Mocks: `python3 app/seed.py` regenerates `docs/mock/*.json` (backend never writes into `frontend/`). OpenAPI snapshot: `docs/openapi.json`.
 **Never change an endpoint path or field name without first updating `docs/API_CONTRACT.md` and telling the user so the frontend can be told.**
