@@ -106,6 +106,13 @@ CREATE TABLE event_rsvps (
 );
 
 -- Telegram Accept/Decline requests to substitutes (one per substitute per decision)
+-- Logged-out sessions (POST /auth/logout). Rows are pruned after the token's own expiry.
+-- Not cleared by the demo reset, so a logged-out token never comes back.
+CREATE TABLE revoked_tokens (
+  jti TEXT PRIMARY KEY,
+  exp INTEGER NOT NULL            -- unix time the token would have expired anyway
+);
+
 CREATE TABLE ack_requests (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   decision_id INTEGER NOT NULL REFERENCES decisions(id),

@@ -72,7 +72,8 @@ tars-martian/
 
 ### Prerequisites
 - Git
-- Python 3.10+ (backend)
+- Python 3.11+ (backend; the pinned FastAPI/Starlette/google-genai need it). Dependencies are pinned in
+  `backend/requirements.txt`; Windows gets `tzdata` + `colorama` automatically, macOS/Linux get `uvloop`.
 - Node.js 18+ LTS (frontend)
 
 ### 1. Clone

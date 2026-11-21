@@ -294,3 +294,81 @@ def test_logout_endpoint(api):
     r = api.post("/api/auth/logout", headers=bearer(api, "S001"))
     assert r.status_code == 200
     assert r.json() == {"ok": True}
+
+
+# ---------- logout revokes (v0.5.1) ----------
+def test_logout_revokes_this_token(api):
+    h = bearer(api, "S001")
+    assert api.get("/api/me", headers=h).status_code == 200
+    assert api.post("/api/auth/logout", headers=h).json() == {"ok": True}
+    for method, url in (("GET", "/api/me"), ("GET", "/api/today"), ("POST", "/api/auth/stream-ticket"),
+                        ("POST", "/api/auth/logout")):
+        r = api.request(method, url, headers=h)
+        assert r.status_code == 401 and r.json() == {"error": "unauthorized", "detail": "Session revoked"}, url
+    assert api.get("/api/me", headers=bearer(api, "S001")).status_code == 200   # logging in again works
+
+
+def test_logout_only_ends_that_session(api):
+    phone, laptop = bearer(api, "H01"), bearer(api, "H01")
+    api.post("/api/auth/logout", headers=phone)
+    assert api.get("/api/me", headers=phone).status_code == 401
+    assert api.get("/api/stats", headers=laptop).status_code == 200            # other session of same user
+
+
+def test_stream_ticket_from_logged_out_session_is_refused(api):
+    h = bearer(api, "S001")
+    t = api.post("/api/auth/stream-ticket", headers=h).json()["ticket"]
+    body = t.split(".")[0]
+    claims = json.loads(base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)))
+    assert claims["sid"] and claims["sid"] != claims["jti"]                    # ticket knows its session
+    api.post("/api/auth/logout", headers=h)
+    r = api.get(f"/api/stream?ticket={t}")
+    assert r.status_code == 401 and r.json()["detail"] == "Session revoked"
+
+
+def test_logout_closes_open_streams_of_that_session(api, server):
+    login_ = lambda: {"Authorization": "Bearer " + httpx.post(
+        f"{server}/auth/login", json={"login_id": "H01", "password": PW}).json()["token"]}
+    mine, other = login_(), login_()
+    from concurrent.futures import ThreadPoolExecutor
+    from app import bus
+    with ThreadPoolExecutor(2) as ex:
+        t_mine = httpx.post(f"{server}/auth/stream-ticket", headers=mine).json()["ticket"]
+        t_other = httpx.post(f"{server}/auth/stream-ticket", headers=other).json()["ticket"]
+        f_mine = ex.submit(lambda: (time.time(), collect(f"{server}/stream?ticket={t_mine}", 6), time.time()))
+        f_other = ex.submit(lambda: (time.time(), collect(f"{server}/stream?ticket={t_other}", 3), time.time()))
+        deadline = time.time() + 5
+        while len(bus._listeners) < 2:
+            assert time.time() < deadline
+            time.sleep(0.05)
+        assert httpx.post(f"{server}/auth/logout", headers=mine).json() == {"ok": True}
+        start, (events, _), end = f_mine.result(10)
+        assert end - start < 4                                                  # closed by the server, not the 6 s timeout
+        assert not any(e == "_session_revoked" for e, _ in events)             # internal signal never sent
+        o_start, (o_events, _), o_end = f_other.result(10)
+        assert o_end - o_start >= 2.9                                           # other session's stream stayed open
+
+
+def test_revocation_is_stored_and_survives_demo_reset(api, db, monkeypatch):
+    monkeypatch.setenv("TARS_DEMO_MODE", "1")
+    gone, hod = bearer(api, "S001"), bearer(api, "H01")
+    api.post("/api/auth/logout", headers=gone)
+    assert db.execute("SELECT COUNT(*) FROM revoked_tokens").fetchone()[0] == 1
+    assert api.post("/api/admin/reset-demo", headers=hod).status_code == 200
+    assert db.execute("SELECT COUNT(*) FROM revoked_tokens").fetchone()[0] == 1
+    assert api.get("/api/me", headers=gone).status_code == 401
+
+
+def test_revocation_rows_are_pruned_after_expiry(api, db):
+    db.execute("INSERT INTO revoked_tokens VALUES ('old', ?)", (int(time.time()) - 10,))
+    db.commit()
+    api.post("/api/auth/logout", headers=bearer(api, "S001"))
+    assert [r[0] for r in db.execute("SELECT jti FROM revoked_tokens")] != ["old"]
+    assert db.execute("SELECT COUNT(*) FROM revoked_tokens WHERE jti = 'old'").fetchone()[0] == 0
+
+
+def test_token_without_jti_is_rejected(api):
+    tok = auth._sign({"typ": "session", "sub": "H01", "role": "hod", "section": None,
+                      "iat": int(time.time()), "exp": int(time.time()) + 3600})
+    r = api.get("/api/me", headers={"Authorization": f"Bearer {tok}"})
+    assert r.status_code == 401 and r.json()["detail"] == "Session revoked"

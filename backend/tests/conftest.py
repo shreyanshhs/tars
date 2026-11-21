@@ -36,17 +36,24 @@ def _test_current_user(x_user_id: Optional[str] = Header(None, alias="X-User-Id"
     return User(**dict(row))
 
 
-main_module.app.dependency_overrides[main_module.current_user] = _test_current_user
+def _test_session_claims(x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+    """TEST-ONLY: claims for the test identity (stream-ticket/logout depend on session claims)."""
+    u = _test_current_user(x_user_id)
+    return {"typ": "session", "sub": u.user_id, "role": u.role, "section": u.section,
+            "jti": f"test-{u.user_id}", "exp": 4102444800}
+
+
+TEST_OVERRIDES = {main_module.current_user: _test_current_user, main_module.session_claims: _test_session_claims}
+main_module.app.dependency_overrides.update(TEST_OVERRIDES)
 
 
 @pytest.fixture
 def real_auth():
-    """Remove the test identity override: requests must carry a real Bearer token."""
+    """Remove the test identity overrides: requests must carry a real Bearer token."""
     overrides = main_module.app.dependency_overrides
-    saved = overrides.pop(main_module.current_user, None)
+    saved = {k: overrides.pop(k) for k in TEST_OVERRIDES if k in overrides}
     yield
-    if saved is not None:
-        overrides[main_module.current_user] = saved
+    overrides.update(saved)
 
 
 @pytest.fixture(scope="session")

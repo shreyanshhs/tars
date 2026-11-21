@@ -117,14 +117,21 @@ def user_from_claims(con: sqlite3.Connection, claims: dict) -> User:
                 name=row["name"], usn=row["usn"])
 
 
-def current_user(creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer),
-                 con: sqlite3.Connection = Depends(get_db)) -> User:
+def session_claims(creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer),
+                   con: sqlite3.Connection = Depends(get_db)) -> dict:
+    """Verified, non-revoked session token claims. Every authenticated endpoint goes through this."""
     if creds is None or not creds.credentials:
         raise unauthorized("Missing bearer token")
     try:
         claims = auth.verify_session(creds.credentials)
     except auth.AuthError as e:
         raise unauthorized(e.detail)
+    if auth.is_revoked(con, claims.get("jti")):
+        raise unauthorized("Session revoked")
+    return claims
+
+
+def current_user(claims: dict = Depends(session_claims), con: sqlite3.Connection = Depends(get_db)) -> User:
     return user_from_claims(con, claims)
 
 
@@ -167,14 +174,19 @@ def login(body: LoginRequest, con: sqlite3.Connection = Depends(get_db)):
 
 
 @api.post("/auth/logout", response_model=LogoutResponse, responses=AUTH_ERRORS, tags=["auth"])
-def logout(user: User = Depends(current_user)):
+def logout(claims: dict = Depends(session_claims), con: sqlite3.Connection = Depends(get_db)):
+    """Revoke THIS token (other sessions of the same user stay valid). Its stream tickets stop working
+    and its open /stream connections are closed."""
+    auth.revoke(con, claims)
+    bus.publish(sse.SESSION_REVOKED, {"sid": claims["jti"]}, hod=False)  # internal; never sent to clients
     return {"ok": True}
 
 
 @api.post("/auth/stream-ticket", response_model=StreamTicket, responses=AUTH_ERRORS, tags=["auth"])
-def stream_ticket(user: User = Depends(current_user)):
+def stream_ticket(claims: dict = Depends(session_claims), user: User = Depends(current_user)):
     """Short-lived (60 s), single-use ticket for GET /stream?ticket=… (EventSource can't send headers)."""
-    ticket, exp = auth.issue_stream_ticket({"sub": user.user_id, "role": user.role, "section": user.section})
+    ticket, exp = auth.issue_stream_ticket({"sub": user.user_id, "role": user.role, "section": user.section,
+                                            "jti": claims.get("jti")})
     return {"ticket": ticket, "expires_at": _utc_iso(exp)}
 
 
@@ -526,8 +538,10 @@ async def stream(ticket: Optional[str] = None):
     except auth.AuthError as e:
         raise unauthorized(e.detail)
     with use_db() as con:
+        if auth.is_revoked(con, claims.get("sid")):
+            raise unauthorized("Session revoked")
         user = user_from_claims(con, claims)
-    return EventSourceResponse(sse.event_stream(user), ping=sse.PING_SECONDS,
+    return EventSourceResponse(sse.event_stream(user, sid=claims.get("sid")), ping=sse.PING_SECONDS,
                                ping_message_factory=sse.ping_event)
 
 

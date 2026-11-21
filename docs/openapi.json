@@ -63,6 +63,7 @@
           "auth"
         ],
         "summary": "Logout",
+        "description": "Revoke THIS token (other sessions of the same user stay valid). Its stream tickets stop working\nand its open /stream connections are closed.",
         "operationId": "logout_api_auth_logout_post",
         "responses": {
           "200": {
@@ -99,7 +100,7 @@
           "auth"
         ],
         "summary": "Stream Ticket",
-        "description": "Short-lived (60 s), single-use ticket for GET /stream?ticket=\u2026 (EventSource can't send headers).",
+        "description": "Short-lived (60 s), single-use ticket for GET /stream?ticket=… (EventSource can't send headers).",
         "operationId": "stream_ticket_api_auth_stream_ticket_post",
         "responses": {
           "200": {
@@ -920,7 +921,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity",
+            "description": "Unprocessable Content",
             "content": {
               "application/json": {
                 "schema": {
@@ -943,7 +944,7 @@
           "admin"
         ],
         "summary": "Approve Decision",
-        "description": "proposed (with pending changes) \u2192 apply them \u2192 committed; pending_ack / escalated \u2192 acknowledged.",
+        "description": "proposed (with pending changes) → apply them → committed; pending_ack / escalated → acknowledged.",
         "operationId": "approve_decision_api_decisions__decision_id__approve_post",
         "security": [
           {
@@ -1031,7 +1032,7 @@
           "admin"
         ],
         "summary": "Reject Decision",
-        "description": "proposed (with pending changes) or escalated \u2192 rejected. Nothing is applied.",
+        "description": "proposed (with pending changes) or escalated → rejected. Nothing is applied.",
         "operationId": "reject_decision_api_decisions__decision_id__reject_post",
         "security": [
           {
@@ -1253,7 +1254,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -1449,7 +1450,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }

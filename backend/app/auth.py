@@ -6,7 +6,9 @@
 - Tokens: base64url(JSON payload) + "." + base64url(HMAC-SHA256(TARS_SESSION_SECRET, payload)).
   Payload: {typ, sub, role, section, iat, exp, jti}. Identity and role come ONLY from a verified token.
   No TARS_SESSION_SECRET → a random per-process secret (tokens die on restart) + a warning.
-- Stream tickets: typ "stream", 60 s, single use (jti remembered in memory until it expires).
+- Stream tickets: typ "stream", 60 s, single use (jti remembered in memory until it expires); they carry
+  the session's jti as `sid`, so logging out also kills tickets and open streams of that session.
+- Logout: the session's jti goes into the revoked_tokens table, checked on every request and ticket.
 - Passwordless login only when TARS_PASSWORDLESS_LOGIN=1 (off by default).
 """
 import base64
@@ -22,7 +24,6 @@ from typing import Optional
 
 log = logging.getLogger("tars.auth")
 
-COOKIE_NAME = "tars_session"
 PBKDF2_ITERATIONS = 200_000       # tests lower this via monkeypatch for speed; stored per hash
 SESSION_HOURS_DEFAULT = 12
 STREAM_TICKET_SECONDS = 60
@@ -158,16 +159,32 @@ def verify_session(token: str) -> dict:
     return _verify(token, "session")
 
 
+# ---------- revocation (logout) ----------
+def revoke(con, claims: dict) -> None:
+    """Revoke one session (its jti) until it would have expired; prune rows that no longer matter."""
+    now = int(time.time())
+    with con:
+        con.execute("DELETE FROM revoked_tokens WHERE exp <= ?", (now,))
+        con.execute("INSERT OR IGNORE INTO revoked_tokens (jti, exp) VALUES (?, ?)",
+                    (claims["jti"], int(claims["exp"])))
+
+
+def is_revoked(con, jti: Optional[str]) -> bool:
+    if not jti:
+        return True  # every real session has a jti; a token without one is not acceptable
+    return con.execute("SELECT 1 FROM revoked_tokens WHERE jti = ?", (jti,)).fetchone() is not None
+
+
 # ---------- single-use SSE tickets ----------
 _used_tickets: dict[str, float] = {}   # jti -> exp
 _ticket_lock = threading.Lock()
 
 
 def issue_stream_ticket(claims: dict) -> tuple[str, int]:
-    """From a verified session's claims (identity/role carried over, nothing re-read)."""
+    """From a verified session's claims (identity/role carried over, nothing re-read). `sid` = session jti."""
     now = int(time.time())
     c = {"typ": "stream", "sub": claims["sub"], "role": claims["role"], "section": claims.get("section"),
-         "iat": now, "exp": now + STREAM_TICKET_SECONDS, "jti": secrets.token_urlsafe(12)}
+         "sid": claims.get("jti"), "iat": now, "exp": now + STREAM_TICKET_SECONDS, "jti": secrets.token_urlsafe(12)}
     return _sign(c), c["exp"]
 
 

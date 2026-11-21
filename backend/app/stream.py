@@ -12,7 +12,7 @@ Publishers put the audience on each message (bus.publish sections/user_ids/hod);
 import asyncio
 import json
 import logging
-from typing import AsyncIterator
+from typing import AsyncIterator, Optional
 
 from sse_starlette.event import ServerSentEvent
 
@@ -22,6 +22,7 @@ from .models import User
 log = logging.getLogger("tars.stream")
 
 PING_SECONDS = 15.0
+SESSION_REVOKED = "_session_revoked"  # internal bus event: close this session's open streams
 QUEUE_MAX = 1000  # per connection; a stuck client drops events instead of growing memory
 
 
@@ -39,7 +40,7 @@ def can_see(user: User, msg: dict) -> bool:
     return False  # faculty: only messages naming them (their slots, their incidents, their nudges)
 
 
-async def event_stream(user: User) -> AsyncIterator[ServerSentEvent]:
+async def event_stream(user: User, sid: Optional[str] = None) -> AsyncIterator[ServerSentEvent]:
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue = asyncio.Queue(maxsize=QUEUE_MAX)
 
@@ -50,6 +51,10 @@ async def event_stream(user: User) -> AsyncIterator[ServerSentEvent]:
             log.warning("stream queue full for %s; dropping %s", user.user_id, msg["event"])
 
     def on_message(msg: dict) -> None:  # called from any thread
+        if msg["event"] == SESSION_REVOKED:  # never forwarded; ends our stream if it's our session
+            if sid and msg["data"].get("sid") == sid:
+                loop.call_soon_threadsafe(put, None)
+            return
         if can_see(user, msg):
             loop.call_soon_threadsafe(put, msg)
 
@@ -57,6 +62,8 @@ async def event_stream(user: User) -> AsyncIterator[ServerSentEvent]:
     try:
         while True:
             msg = await queue.get()
+            if msg is None:  # session logged out
+                return
             yield ServerSentEvent(event=msg["event"], data=json.dumps(msg["data"], separators=(",", ":")))
     finally:
         bus.unsubscribe(on_message)
