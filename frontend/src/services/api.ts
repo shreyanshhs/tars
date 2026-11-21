@@ -20,9 +20,24 @@ export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/a
  */
 export const isMockMode = import.meta.env.VITE_USE_MOCK !== 'false';
 
+let inMemoryToken: string | null = null;
+
+export function setAuthToken(token: string | null) {
+  inMemoryToken = token;
+}
+
+export function getAuthToken(): string | null {
+  return inMemoryToken;
+}
+
 async function request<T>(path: string, options: RequestInit = {}, userId?: string): Promise<T> {
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
+  // CSRF protection for cookie-authenticated browser requests
+  headers.set('X-Requested-With', 'TARS');
+  if (inMemoryToken) {
+    headers.set('Authorization', `Bearer ${inMemoryToken}`);
+  }
   if (userId) {
     headers.set('X-User-Id', userId);
   }
@@ -30,6 +45,7 @@ async function request<T>(path: string, options: RequestInit = {}, userId?: stri
   const url = `${API_BASE}${path}`;
   const response = await fetch(url, {
     ...options,
+    credentials: 'include',
     headers,
   });
 
@@ -49,15 +65,41 @@ async function request<T>(path: string, options: RequestInit = {}, userId?: stri
 
 export const api = {
   // Auth
-  login: (loginId: string) =>
-    request<ApiUser>('/auth/login', {
+  login: async (loginId: string, password?: string): Promise<ApiUser> => {
+    const res = await request<ApiUser | { token?: string; token_type?: string; expires_at?: string; user: ApiUser }>(
+      '/auth/login',
+      {
+        method: 'POST',
+        body: JSON.stringify({ login_id: loginId, ...(password ? { password } : {}) }),
+      },
+    );
+    if ('user' in res && res.user) {
+      if (res.token) {
+        setAuthToken(res.token);
+      }
+      return res.user;
+    }
+    return res as ApiUser;
+  },
+
+  logout: async () => {
+    try {
+      return await request<{ ok: boolean }>('/auth/logout', {
+        method: 'POST',
+      });
+    } finally {
+      setAuthToken(null);
+    }
+  },
+
+  getStreamTicket: () =>
+    request<{ ticket: string; expires_at: string }>('/auth/stream-ticket', {
       method: 'POST',
-      body: JSON.stringify({ login_id: loginId }),
     }),
 
   getDemoUsers: () => request<ApiUser[]>('/auth/demo-users'),
 
-  getMe: (userId: string) => request<ApiUser>('/me', {}, userId),
+  getMe: (userId?: string) => request<ApiUser>('/me', {}, userId),
 
   // Schedule & Timetable
   getToday: (userId: string) => request<ApiToday>('/today', {}, userId),

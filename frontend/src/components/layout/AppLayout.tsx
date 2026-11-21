@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import { useTars } from '../../context/TarsContext';
 import type { ViewTab } from '../../types/tars';
+import { SignInModal } from '../auth/SignInModal';
 import {
   Sun,
   Bell,
   Calendar,
   LayoutGrid,
   ShieldAlert,
-  Settings,
   Search,
   HelpCircle,
   ChevronDown,
   ArrowRightLeft,
+  LogOut,
+  LogIn,
+  Settings,
   Server,
 } from 'lucide-react';
 
@@ -21,6 +24,10 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
     currentUser,
     demoUsers,
     switchUser,
+    logout,
+    isAuthenticated,
+    showLoginModal,
+    setShowLoginModal,
     role,
     currentView,
     setCurrentView,
@@ -36,6 +43,9 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
     { id: 'schedule', label: 'Schedule', icon: <LayoutGrid className="w-4 h-4" /> },
     { id: 'admin', label: 'Admin Console', icon: <ShieldAlert className="w-4 h-4" />, adminOnly: true },
   ];
+
+  // Show navigation routes based on the verified role
+  const visibleNavItems = navItems.filter((item) => !item.adminOnly || role === 'hod');
 
   const handleSelectTab = (id: ViewTab) => {
     setCurrentView(id);
@@ -69,7 +79,7 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
               Operations
             </div>
             <nav className="space-y-1">
-              {navItems.map((item) => {
+              {visibleNavItems.map((item) => {
                 const isActive = currentView === item.id;
                 return (
                   <button
@@ -119,23 +129,29 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
           <div className="text-[10px] font-bold tracking-wider uppercase text-slate-400 px-2 pb-1.5 flex items-center justify-between">
             <span className="flex items-center space-x-1">
               <Server className="w-3 h-3 text-slate-400" />
-              <span>{isMockMode ? 'Mock Mode' : 'API Mode'}</span>
+              <span>{isMockMode ? 'Mock Mode' : 'Verified Session'}</span>
             </span>
-            <span
-              className="text-indigo-600 font-semibold cursor-pointer hover:underline"
-              onClick={() => setRoleMenuOpen(!roleMenuOpen)}
-            >
-              Switch User ⇄
-            </span>
+            {isMockMode && (
+              <span
+                className="text-indigo-600 font-semibold cursor-pointer hover:underline text-[10px]"
+                onClick={() => setRoleMenuOpen(!roleMenuOpen)}
+              >
+                Demo Switcher ⇄
+              </span>
+            )}
           </div>
 
           <div
-            onClick={() => setRoleMenuOpen(!roleMenuOpen)}
-            className="flex items-center justify-between p-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 cursor-pointer transition-all"
+            onClick={() => {
+              if (isMockMode) setRoleMenuOpen(!roleMenuOpen);
+            }}
+            className={`flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200/80 transition-all ${
+              isMockMode ? 'hover:bg-slate-100 cursor-pointer' : ''
+            }`}
           >
             <div className="flex items-center space-x-2.5 min-w-0">
               <div
-                className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs text-white shadow-xs ${
+                className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs text-white shadow-xs shrink-0 ${
                   role === 'hod' ? 'bg-purple-600' : role === 'faculty' ? 'bg-teal-600' : 'bg-indigo-600'
                 }`}
               >
@@ -144,18 +160,18 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
               <div className="min-w-0 text-left">
                 <div className="text-xs font-bold text-slate-800 truncate">{currentUser.name}</div>
                 <div className="text-[10px] text-slate-500 truncate">
-                  {currentUser.role.toUpperCase()} {currentUser.section ? `• ${currentUser.section}` : ''}
+                  {currentUser.role.toUpperCase()} {currentUser.section ? `• ${currentUser.section}` : ''} {currentUser.usn ? `(${currentUser.usn})` : ''}
                 </div>
               </div>
             </div>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+            {isMockMode && <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
           </div>
 
-          {/* Role switcher menu */}
-          {roleMenuOpen && (
+          {/* Demo role switcher menu (Mock Mode Only) */}
+          {isMockMode && roleMenuOpen && (
             <div className="absolute bottom-16 left-3 right-3 bg-white rounded-xl shadow-xl border border-slate-200 p-1.5 z-50 max-h-72 overflow-y-auto">
               <div className="text-[11px] font-semibold text-slate-400 px-2 py-1 flex items-center justify-between">
-                <span>Select Demo Account</span>
+                <span>Demo Accounts (Mock Mode Only)</span>
                 <span className="text-[10px] font-mono">{demoUsers.length} users</span>
               </div>
               {demoUsers.map((u) => {
@@ -241,17 +257,20 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
               {isMockMode ? 'Mock Mode (Default)' : 'API Mode'}
             </div>
 
-            {/* Quick role toggle button */}
-            <button
-              onClick={() => {
-                const nextUser = role === 'student' ? 'H01' : 'S001';
-                handleSelectUser(nextUser);
-              }}
-              className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-[11px] font-semibold border border-slate-200 transition-colors"
-            >
-              <ArrowRightLeft className="w-3 h-3" />
-              <span>Role: {currentUser.role.toUpperCase()}</span>
-            </button>
+            {/* Quick role toggle button (Mock Mode only) */}
+            {isMockMode && (
+              <button
+                onClick={() => {
+                  const nextUser = role === 'student' ? 'H01' : 'S001';
+                  handleSelectUser(nextUser);
+                }}
+                className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-[11px] font-semibold border border-slate-200 transition-colors"
+                title="Mock Mode Demo: Quick role switcher"
+              >
+                <ArrowRightLeft className="w-3 h-3" />
+                <span>Role: {currentUser.role.toUpperCase()}</span>
+              </button>
+            )}
 
             {/* Notification Bell */}
             <button
@@ -269,6 +288,26 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
               <HelpCircle className="w-4 h-4" />
             </button>
 
+            {/* Auth Sign In / Sign Out Button */}
+            {isAuthenticated ? (
+              <button
+                onClick={() => logout()}
+                className="flex items-center space-x-1 px-2.5 py-1 rounded-lg text-slate-600 hover:text-rose-600 hover:bg-rose-50 text-[11px] font-semibold border border-slate-200 transition-colors"
+                title="Sign out of current session"
+              >
+                <LogOut className="w-3 h-3" />
+                <span>Sign Out</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowLoginModal(true)}
+                className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-[11px] font-semibold shadow-xs transition-colors"
+              >
+                <LogIn className="w-3 h-3" />
+                <span>Sign In</span>
+              </button>
+            )}
+
             {/* Avatar circle */}
             <div
               className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-xs ${
@@ -285,6 +324,9 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
           {children}
         </main>
       </div>
+
+      {/* Production Sign In Modal */}
+      <SignInModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} />
     </div>
   );
 };

@@ -9,6 +9,7 @@ import type {
   ApiRoom,
   ApiAttendanceItem,
   ApiIncidentRequest,
+  ApiIncidentAccepted,
 } from './api';
 
 export type Role = 'student' | 'faculty' | 'hod';
@@ -55,4 +56,5 @@ export type {
   ApiRoom,
   ApiAttendanceItem,
   ApiIncidentRequest,
+  ApiIncidentAccepted,
 };

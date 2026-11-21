@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Logout */
+        post: operations["logout_api_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/demo-users": {
         parameters: {
             query?: never;
@@ -393,7 +410,7 @@ export interface paths {
         };
         /**
          * Stream
-         * @description EventSource can't send headers, so auth is the `user_id` query param.
+         * @description EventSource can authenticate via tars_session cookie (preferred, with withCredentials=true) or user_id query param.
          */
         get: operations["stream_api_stream_get"];
         put?: never;
@@ -531,6 +548,16 @@ export interface components {
         LoginRequest: {
             /** Login Id */
             login_id: string;
+            /** Password */
+            password?: string | null;
+        };
+        /** LogoutResponse */
+        LogoutResponse: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
         };
         /** Nudge */
         Nudge: {
@@ -693,6 +720,15 @@ export interface operations {
                     "application/json": components["schemas"]["User"];
                 };
             };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -709,6 +745,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    logout_api_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogoutResponse"];
                 };
             };
         };
@@ -736,9 +792,7 @@ export interface operations {
     me_api_me_get: {
         parameters: {
             query?: never;
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -762,15 +816,6 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
         };
     };
     timetable_api_timetable_get: {
@@ -778,9 +823,7 @@ export interface operations {
             query?: {
                 section?: string | null;
             };
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -818,9 +861,7 @@ export interface operations {
     faculty_timetable_api_timetable_faculty__faculty_id__get: {
         parameters: {
             query?: never;
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path: {
                 faculty_id: string;
             };
@@ -872,9 +913,7 @@ export interface operations {
                 day: "MON" | "TUE" | "WED" | "THU" | "FRI";
                 period: number;
             };
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -912,9 +951,7 @@ export interface operations {
     today_api_today_get: {
         parameters: {
             query?: never;
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -938,15 +975,6 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
         };
     };
     attendance_api_attendance_get: {
@@ -954,9 +982,7 @@ export interface operations {
             query?: {
                 section?: string | null;
             };
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -994,9 +1020,7 @@ export interface operations {
     decisions_api_decisions_get: {
         parameters: {
             query?: never;
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -1029,23 +1053,12 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
         };
     };
     stats_api_stats_get: {
         parameters: {
             query?: never;
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -1078,23 +1091,12 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
         };
     };
     nudges_api_nudges_get: {
         parameters: {
             query?: never;
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -1118,15 +1120,6 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
         };
     };
     events_api_events_get: {
@@ -1134,9 +1127,7 @@ export interface operations {
             query?: {
                 section?: string | null;
             };
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -1174,9 +1165,7 @@ export interface operations {
     rsvp_event_api_events__event_id__rsvp_post: {
         parameters: {
             query?: never;
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path: {
                 event_id: number;
             };
@@ -1234,9 +1223,7 @@ export interface operations {
     unrsvp_event_api_events__event_id__rsvp_delete: {
         parameters: {
             query?: never;
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path: {
                 event_id: number;
             };
@@ -1294,9 +1281,7 @@ export interface operations {
     create_incident_api_incidents_post: {
         parameters: {
             query?: never;
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -1333,7 +1318,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -1347,9 +1332,7 @@ export interface operations {
     approve_decision_api_decisions__decision_id__approve_post: {
         parameters: {
             query?: never;
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path: {
                 decision_id: number;
             };
@@ -1416,9 +1399,7 @@ export interface operations {
     reject_decision_api_decisions__decision_id__reject_post: {
         parameters: {
             query?: never;
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path: {
                 decision_id: number;
             };
@@ -1485,9 +1466,7 @@ export interface operations {
     read_nudge_api_nudges__nudge_id__read_post: {
         parameters: {
             query?: never;
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path: {
                 nudge_id: number;
             };
@@ -1536,9 +1515,7 @@ export interface operations {
     snooze_nudge_api_nudges__nudge_id__snooze_post: {
         parameters: {
             query?: never;
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path: {
                 nudge_id: number;
             };
@@ -1577,7 +1554,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -1591,9 +1568,7 @@ export interface operations {
     block_nudge_api_nudges__nudge_id__block_post: {
         parameters: {
             query?: never;
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path: {
                 nudge_id: number;
             };
@@ -1642,9 +1617,7 @@ export interface operations {
     list_faculty_api_faculty_get: {
         parameters: {
             query?: never;
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -1668,23 +1641,12 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
         };
     };
     rename_faculty_api_faculty__faculty_id__patch: {
         parameters: {
             query?: never;
-            header?: {
-                "X-User-Id"?: string | null;
-            };
+            header?: never;
             path: {
                 faculty_id: string;
             };
@@ -1732,7 +1694,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -1785,6 +1747,7 @@ export interface operations {
     };
 }
 
+// Convenience type exports
 export type ApiUser = components["schemas"]["User"];
 export type ApiSlot = components["schemas"]["Slot"];
 export type ApiNudge = components["schemas"]["Nudge"];
@@ -1797,14 +1760,14 @@ export type ApiAttendanceItem = components["schemas"]["AttendanceItem"];
 export type ApiIncidentRequest = components["schemas"]["IncidentRequest"];
 export type ApiIncidentAccepted = components["schemas"]["IncidentAccepted"];
 export type ApiToday = components["schemas"]["Today"];
-
-export type SseAgentStepPhase = "signal" | "evaluate" | "match" | "constraints" | "resolve" | "dispatch" | "escalate";
-export type SseAgentStepStep = "perceive" | "reason" | "tool_call" | "act" | "done" | "error";
+export type ApiErrorResponse = components["schemas"]["ErrorResponse"];
+export type ApiLoginRequest = components["schemas"]["LoginRequest"];
+export type ApiLogoutResponse = components["schemas"]["LogoutResponse"];
 
 export interface SseAgentStepData {
   decision_id: number;
-  step: SseAgentStepStep;
-  phase: SseAgentStepPhase;
+  step: "perceive" | "reason" | "tool_call" | "act" | "done" | "error";
+  phase: "signal" | "evaluate" | "match" | "constraints" | "resolve" | "dispatch" | "escalate";
   text: string;
   ts: string;
 }
@@ -1813,4 +1776,3 @@ export interface SseTimetableUpdatedData {
   section: string;
   slot_ids: number[];
 }
-

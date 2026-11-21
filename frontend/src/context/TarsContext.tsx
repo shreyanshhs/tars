@@ -14,6 +14,7 @@ import type {
   ApiRoom,
   ApiAttendanceItem,
   ApiIncidentRequest,
+  ApiIncidentAccepted,
 } from '../types/tars';
 import { api, isMockMode } from '../services/api';
 import { subscribeToSse } from '../services/sse';
@@ -31,6 +32,11 @@ interface TarsContextType {
   currentUser: ApiUser;
   demoUsers: ApiUser[];
   switchUser: (userId: string) => Promise<void>;
+  login: (loginId: string, password?: string) => Promise<void>;
+  logout: () => Promise<void>;
+  isAuthenticated: boolean;
+  showLoginModal: boolean;
+  setShowLoginModal: (show: boolean) => void;
   role: Role;
   currentView: ViewTab;
   setCurrentView: (view: ViewTab) => void;
@@ -64,7 +70,7 @@ interface TarsContextType {
   reasoningLogs: ReasoningLog[];
   isReplanRunning: boolean;
   relocationDiff: RelocationDiff;
-  triggerTarsReplan: (customIncident?: string) => Promise<void>;
+  triggerTarsReplan: (customIncident?: ApiIncidentRequest | string) => Promise<ApiIncidentAccepted | void>;
   decisions: ApiDecision[];
   handleApproveDecision: (id: number) => Promise<void>;
   handleRejectDecision: (id: number) => Promise<void>;
@@ -199,6 +205,8 @@ export const TarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [demoUsers, setDemoUsers] = useState<ApiUser[]>(defaultDemoUsers);
   const [currentView, setCurrentView] = useState<ViewTab>('today');
   const [selectedSection, setSelectedSection] = useState<string>('CSE-A');
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(isMockMode);
+  const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
 
   // Timetable & Resources
   const [slots, setSlots] = useState<ApiSlot[]>(defaultSlots);
@@ -230,6 +238,31 @@ export const TarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const unreadNudgesCount = useMemo(() => {
     return nudges.filter((n) => !n.read && !n.blocked).length;
   }, [nudges]);
+
+  // Session verification on mount in API mode
+  useEffect(() => {
+    if (isMockMode) return;
+
+    api.getMe()
+      .then((user) => {
+        setCurrentUser(user);
+        setIsAuthenticated(true);
+        if (user.role === 'hod') setCurrentView('admin');
+        else setCurrentView('today');
+      })
+      .catch(() => {
+        setIsAuthenticated(false);
+        setShowLoginModal(true);
+      });
+  }, []);
+
+  const handleSetCurrentView = (view: ViewTab) => {
+    if (view === 'admin' && currentUser.role === 'student') {
+      console.warn('Access denied: Admin Console requires HOD or Staff role.');
+      return;
+    }
+    setCurrentView(view);
+  };
 
   // Data fetching in API mode
   const refreshData = useCallback(async () => {
@@ -318,35 +351,62 @@ export const TarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [currentUser.user_id, refreshData]);
 
-  // Role / User Switcher
-  const switchUser = async (userId: string) => {
-    const found = demoUsers.find((u) => u.user_id === userId);
-    if (!found) return;
-
+  // Production Sign In
+  const login = async (loginId: string, password?: string) => {
     if (isMockMode) {
+      const upper = loginId.trim().toUpperCase();
+      const found = demoUsers.find(
+        (u) => (u.usn && u.usn.toUpperCase() === upper) || u.user_id.toUpperCase() === upper
+      );
+      if (!found) throw new Error('No user found with that USN or Staff ID in demo directory');
       setCurrentUser(found);
-      if (found.role === 'hod') {
-        setCurrentView('admin');
-      } else {
-        setCurrentView('today');
-      }
+      setIsAuthenticated(true);
+      setShowLoginModal(false);
+      if (found.role === 'hod') setCurrentView('admin');
+      else setCurrentView('today');
       return;
     }
 
-    try {
-      const loginId = found.usn || found.user_id;
-      const loggedIn = await api.login(loginId);
-      setCurrentUser(loggedIn);
-      if (loggedIn.role === 'hod') {
-        setCurrentView('admin');
-      } else {
-        setCurrentView('today');
+    // Authenticate with credentials against backend
+    await api.login(loginId, password);
+    // Never trust client data: derive active user & role directly from verified session via GET /api/me
+    const verifiedUser = await api.getMe();
+    setCurrentUser(verifiedUser);
+    setIsAuthenticated(true);
+    setShowLoginModal(false);
+    if (verifiedUser.role === 'hod') setCurrentView('admin');
+    else setCurrentView('today');
+    await refreshData();
+  };
+
+  // Production Sign Out
+  const logout = async () => {
+    if (!isMockMode) {
+      try {
+        await api.logout();
+      } catch (e) {
+        console.warn('Logout API call failed:', e);
       }
-    } catch {
-      // Fallback
-      setCurrentUser(found);
-      if (found.role === 'hod') setCurrentView('admin');
-      else setCurrentView('today');
+    }
+    setIsAuthenticated(false);
+    setShowLoginModal(true);
+  };
+
+  // Demo Role / User Switcher (Mock Mode only)
+  const switchUser = async (userId: string) => {
+    if (!isMockMode) {
+      console.warn('Direct user switching is disabled in API Mode. Changing accounts requires signing out and entering verified credentials.');
+      return;
+    }
+
+    const found = demoUsers.find((u) => u.user_id === userId);
+    if (!found) return;
+
+    setCurrentUser(found);
+    if (found.role === 'hod') {
+      setCurrentView('admin');
+    } else {
+      setCurrentView('today');
     }
   };
 
@@ -378,12 +438,12 @@ export const TarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!isMockMode) {
       try {
         await api.blockNudge(id, currentUser.user_id);
-        setStats((s) => ({ ...s, nudges_acted: s.nudges_acted + 1 }));
+        setStats((s: ApiStats) => ({ ...s, nudges_acted: s.nudges_acted + 1 }));
       } catch (err) {
         console.error(err);
       }
     } else {
-      setStats((s) => ({ ...s, nudges_acted: s.nudges_acted + 1 }));
+      setStats((s: ApiStats) => ({ ...s, nudges_acted: s.nudges_acted + 1 }));
     }
     setStudySlotLocked(true);
     setNudges((prev) => prev.map((n) => (n.id === id ? { ...n, blocked: true } : n)));
@@ -421,30 +481,48 @@ export const TarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Incident & Replan
-  const triggerTarsReplan = async (customIncident?: string) => {
-    const textToRun = customIncident || incidentText;
+  const triggerTarsReplan = async (
+    customIncident?: ApiIncidentRequest | string,
+  ): Promise<ApiIncidentAccepted | void> => {
+    let incidentReq: ApiIncidentRequest;
+    if (typeof customIncident === 'object' && customIncident !== null) {
+      incidentReq = customIncident;
+      if (incidentReq.note) {
+        setIncidentText(incidentReq.note);
+      }
+    } else {
+      const textToRun = typeof customIncident === 'string' ? customIncident : incidentText;
+      incidentReq = {
+        type: 'absence',
+        faculty_id: 'F01',
+        day: 'MON',
+        periods: [1, 2],
+        note: textToRun,
+      };
+    }
+
     setIsReplanRunning(true);
     setReasoningLogs([]);
 
     if (!isMockMode) {
       try {
-        const incidentReq: ApiIncidentRequest = {
-          type: 'absence',
-          faculty_id: 'F01',
-          day: 'MON',
-          periods: [1, 2],
-          note: textToRun,
-        };
-        await api.reportIncident(incidentReq, currentUser.user_id);
+        const res = await api.reportIncident(incidentReq, currentUser.user_id);
         // Live streaming will come via SSE agent_step listener!
+        return res;
       } catch (err) {
         console.error('Incident report error:', err);
         setIsReplanRunning(false);
+        throw err;
       }
-      return;
     }
 
     // Mock mode step-by-step log animation
+    const textToRun =
+      incidentReq.note ||
+      (incidentReq.type === 'absence'
+        ? `Faculty ${incidentReq.faculty_id} absent ${incidentReq.day} (periods ${incidentReq.periods.join(', ')})`
+        : `Room ${incidentReq.room_id} unavailable ${incidentReq.day} (periods ${incidentReq.periods.join(', ')})`);
+
     const steps: { tag: ReasoningLog['tag']; phase: string; step: string; message: string; delay: number }[] = [
       {
         tag: 'SIGNAL',
@@ -556,6 +634,12 @@ export const TarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }, step.delay);
     });
+
+    return {
+      incident_id: Math.floor(Math.random() * 800) + 100,
+      decision_id: Math.floor(Math.random() * 800) + 100,
+      status: 'agent_running' as const,
+    };
   };
 
   // Decisions Approval / Rejection
@@ -584,7 +668,7 @@ export const TarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Local simulation handlers
   const nudgeAllFaculty = () => {
     setFacultyNudgeTriggered(true);
-    setStats((s) => ({ ...s, nudges_acted: s.nudges_acted + 5 }));
+    setStats((s: ApiStats) => ({ ...s, nudges_acted: s.nudges_acted + 5 }));
   };
 
   return (
@@ -594,9 +678,14 @@ export const TarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentUser,
         demoUsers,
         switchUser,
+        login,
+        logout,
+        isAuthenticated,
+        showLoginModal,
+        setShowLoginModal,
         role,
         currentView,
-        setCurrentView,
+        setCurrentView: handleSetCurrentView,
         unreadNudgesCount,
         slots,
         selectedSection,
