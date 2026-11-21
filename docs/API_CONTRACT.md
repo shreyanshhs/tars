@@ -81,6 +81,7 @@ Ids (`S001…`, `F01…F08`, `H01`) are stable.
 | Method | Path | Who | Purpose | Screen |
 |---|---|---|---|---|
 | POST | `/auth/login` | public | Log in with USN / staff ID + password → token (v0.5) | login |
+| POST | `/auth/logout` | all | Clear active session → `{ "ok": true }` (v0.5) | navbar / profile |
 | POST | `/auth/stream-ticket` | all | Single-use 60 s ticket for `/stream` (v0.5) | live refresh |
 | GET | `/auth/demo-users` | public | List of seeded users for the demo role switcher | login / role picker |
 | GET | `/me` | all | Current user + role + section | sidebar |
@@ -126,6 +127,10 @@ Ids (`S001…`, `F01…F08`, `H01`) are stable.
 The demo password for every seeded user is set by the backend operator (`TARS_DEMO_PASSWORD` in `.env`); it is never in
 the repo. Passwordless login (omit `password`) works only when the backend runs with `TARS_PASSWORDLESS_LOGIN=1`.
 `GET /me` returns the same `user` object. Keep the token in memory or `sessionStorage`; never put it in a URL.
+
+### POST `/auth/logout`  (v0.5)
+Request: empty body, header `Authorization: Bearer <token>`.
+Response 200: `{ "ok": true }`. Clears active session.
 
 **USN ↔ user_id mapping:** `users.usn` column (unique, students only). `user_id` is the internal primary key (`S001`, `F01`, `H01`).
 The frontend never uses the USN after login; it only uses `user_id`.

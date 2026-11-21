@@ -287,3 +287,10 @@ def test_openapi_declares_bearer_and_ticket(api):
     assert {"LoginResponse", "StreamTicket"} <= set(spec["components"]["schemas"])
     me_params = [p["name"] for p in spec["paths"]["/api/me"]["get"].get("parameters", [])]
     assert "X-User-Id" not in me_params
+
+
+def test_logout_endpoint(api):
+    assert api.post("/api/auth/logout").status_code == 401
+    r = api.post("/api/auth/logout", headers=bearer(api, "S001"))
+    assert r.status_code == 200
+    assert r.json() == {"ok": True}

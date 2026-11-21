@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -22,7 +22,7 @@ from . import actions, agent, auth, bus, notify, tools
 from . import stream as sse
 from .db import DAYS, NUDGE_SELECT, fetch_slots, get_db, iso, now, nudge_dict, use_db
 from .models import (AttendanceItem, Day, Decision, ErrorResponse, Event, Faculty, FacultyUpdate,
-                     IncidentAccepted, IncidentRequest, LoginRequest, LoginResponse, Meta, Nudge, ResetResult, Room, Slot,
+                     IncidentAccepted, IncidentRequest, LoginRequest, LoginResponse, LogoutResponse, Meta, Nudge, ResetResult, Room, Slot,
                      SnoozeRequest, Stats, StreamTicket,
                      Today, User)
 from .validator import ClashError
@@ -164,6 +164,11 @@ def login(body: LoginRequest, con: sqlite3.Connection = Depends(get_db)):
     token, exp = auth.issue_session(row)
     user = User(user_id=row["id"], usn=row["usn"], name=row["name"], role=row["role"], section=row["section"])
     return {"token": token, "token_type": "bearer", "expires_at": _utc_iso(exp), "user": user}
+
+
+@api.post("/auth/logout", response_model=LogoutResponse, responses=AUTH_ERRORS, tags=["auth"])
+def logout(user: User = Depends(current_user)):
+    return {"ok": True}
 
 
 @api.post("/auth/stream-ticket", response_model=StreamTicket, responses=AUTH_ERRORS, tags=["auth"])

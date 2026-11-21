@@ -34,6 +34,10 @@ class StreamTicket(BaseModel):
     expires_at: str
 
 
+class LogoutResponse(BaseModel):
+    ok: bool = True
+
+
 class Slot(BaseModel):
     id: int
     day: Day

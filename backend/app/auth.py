@@ -22,6 +22,7 @@ from typing import Optional
 
 log = logging.getLogger("tars.auth")
 
+COOKIE_NAME = "tars_session"
 PBKDF2_ITERATIONS = 200_000       # tests lower this via monkeypatch for speed; stored per hash
 SESSION_HOURS_DEFAULT = 12
 STREAM_TICKET_SECONDS = 60
