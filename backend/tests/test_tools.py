@@ -110,7 +110,7 @@ def test_log_decision(db):
     d = tools.log_decision("absence", "CSE-A DS MON P2 → F08",
                            "Attendance 71% < 75%, so cancel rejected; F08 free, lowest load.",
                            [23], status="pending_ack", con=db)
-    assert set(d) == {"id", "created_at", "trigger", "summary", "reasoning", "affected_slot_ids", "status"}
+    assert set(d) == {"id", "created_at", "trigger", "summary", "reasoning", "affected_slot_ids", "status", "calendar_link"}
     assert d["affected_slot_ids"] == [23] and d["status"] == "pending_ack"
     assert db.execute("SELECT COUNT(*) FROM decisions").fetchone()[0] == 1
     with pytest.raises(ValueError):

@@ -1677,6 +1677,17 @@
               "rejected"
             ],
             "title": "Status"
+          },
+          "calendar_link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calendar Link"
           }
         },
         "type": "object",
@@ -1686,7 +1697,8 @@
           "trigger",
           "summary",
           "affected_slot_ids",
-          "status"
+          "status",
+          "calendar_link"
         ],
         "title": "Decision"
       },

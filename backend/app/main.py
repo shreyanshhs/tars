@@ -18,7 +18,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from sse_starlette.sse import EventSourceResponse
 
-from . import actions, agent, auth, bus, notify, tools
+from . import actions, agent, auth, bus, gcal, notify, tools
 from . import stream as sse
 from .db import DAYS, NUDGE_SELECT, fetch_slots, get_db, iso, now, nudge_dict, use_db
 from .models import (AttendanceItem, Day, Decision, ErrorResponse, Event, Faculty, FacultyUpdate,
@@ -254,7 +254,7 @@ def attendance(section: Optional[str] = None, user: User = Depends(current_user)
 # ---------- admin ----------
 @api.get("/decisions", response_model=list[Decision], responses=HOD_ERRORS, tags=["admin"])
 def decisions(_: User = Depends(require_hod), con: sqlite3.Connection = Depends(get_db)):
-    rows = con.execute("SELECT id, created_at, trigger, summary, reasoning, affected_slot_ids, status "
+    rows = con.execute("SELECT id, created_at, trigger, summary, reasoning, affected_slot_ids, status, calendar_link "
                        "FROM decisions ORDER BY created_at DESC, id DESC")
     return [{**dict(r), "affected_slot_ids": json.loads(r["affected_slot_ids"] or "[]")} for r in rows]
 
@@ -503,7 +503,10 @@ def reset_demo(_demo: None = Depends(require_demo_mode), _: User = Depends(requi
     Telegram links (users.telegram_chat_id) are kept. Only touches the database, never .env."""
     from . import seed
     timers = notify.notifier.cancel_all_escalations()
+    gcal.calendar.wait_idle(timeout=10)  # let in-flight event saves land, so none is orphaned in the calendar
+    event_ids = [r[0] for r in con.execute("SELECT gcal_event_id FROM slots WHERE gcal_event_id IS NOT NULL")]
     slots = seed.reset_demo(con)
+    gcal.calendar.delete_events(event_ids)  # only events TARS created; background, never blocks the reset
     logging.getLogger("tars").info("demo reset: %d slots restored, %d escalation timer(s) cancelled", slots, timers)
     bus.publish("demo_reset", {}, everyone=True)
     return {"status": "reset", "slots": slots}

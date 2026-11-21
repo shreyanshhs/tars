@@ -8,6 +8,7 @@
     "affected_slot_ids": [
       1
     ],
-    "status": "pending_ack"
+    "status": "pending_ack",
+    "calendar_link": "https://calendar.example/mock-event"
   }
 ]

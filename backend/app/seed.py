@@ -212,7 +212,9 @@ def export_mock(con, data: dict):
         step("04", "act", "dispatch", f"Committed 1 change(s), sent 2 nudge(s): Data Structures on {when.split()[0]} at {at} is now with {sub}, same room."),
         {"event": "timetable_updated", "data": {"section": "CSE-A", "slot_ids": [1, 2]}},
         {"event": "nudge_created", "data": {"id": 3, "user_id": student, "kind": "replan", "title": "TARS re-planned your day", "body": f"DS at {at} is now with {sub}.", "created_at": "2026-11-25T10:42:05", "read": False, "snoozed_until": None, "blocked": False}},
+        step("05", "act", "dispatch", "Calendar: saving 1 event(s) in the background"),
         step("06", "done", "dispatch", "Decision #1: pending_ack"),
+        step("07", "act", "dispatch", f"Calendar event created: DS (CSE-A): {sub} substituting, DS (CSE-A) {when.split()[0]} {at}"),
     ], indent=2))
     (MOCK / "events.json").write_text(json.dumps(
         [dict(id=i + 1, **e, clashes_with=[], rsvp=False, rsvp_count=0) for i, e in enumerate(data["events"])], indent=2))
@@ -220,7 +222,8 @@ def export_mock(con, data: dict):
         "id": 1, "created_at": "2026-11-25T10:42:00", "trigger": "absence",
         "summary": f"{absent} absent: CSE-A DS ({when}) reassigned to {sub} in R101",
         "reasoning": f"CSE-A DS attendance is 71% (<75%), so cancelling was rejected. {short_name(sub)} teaches DS, is free {when} and has the lowest weekly load (5).",
-        "affected_slot_ids": [1], "status": "pending_ack"}], indent=2))
+        "affected_slot_ids": [1], "status": "pending_ack",
+        "calendar_link": "https://calendar.example/mock-event"}], indent=2))  # v0.6 (placeholder, not a real event)
     (MOCK / "nudges.json").write_text(json.dumps([
         {"id": 1, "user_id": student, "kind": "replan", "title": "TARS re-planned your day",
          "body": f"DS at {at} is now with {sub}, same room.", "created_at": "2026-11-25T10:43:00", "read": False, "snoozed_until": None, "blocked": False},

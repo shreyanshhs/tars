@@ -14,7 +14,7 @@ import os
 from datetime import datetime
 from typing import Any, Optional
 
-from . import actions, bus, notify, tools
+from . import actions, bus, gcal, notify, tools
 from .db import fetch_slots, use_db
 from .validator import ClashError, validate_clash
 
@@ -341,6 +341,17 @@ class AgentRun:
                       + f" to confirm (reply within {notify.escalation_minutes():g} min)"
                       + (f"; not reachable: {', '.join(unsent)}" if unsent else ""), phase="dispatch")
 
+    def sync_calendar(self) -> None:
+        """Queue Google Calendar create/update for every substitution or move (background; never raises)."""
+        slots = sorted((sid, how) for sid, how in self.handled.items() if how in ("substituted", "moved", "room_changed"))
+        try:
+            fut = gcal.calendar.sync_slots(self.decision_id, slots, self.audience)
+        except Exception:
+            log.exception("could not queue calendar sync")
+            return
+        if fut is not None:
+            self.step("act", f"Calendar: saving {len(slots)} event(s) in the background", phase="dispatch")
+
     def flush_acts(self) -> None:
         for phase, text in self.pending_acts:
             self.step("act", text, phase=phase)
@@ -392,6 +403,7 @@ class AgentRun:
                                   changes=self.proposed or None)
         bus.publish("decision_updated", d, user_ids=self.audience)
         self.notify_substitutes()
+        self.sync_calendar()
         self.step("error" if failure else "done", summary if failure else f"Decision #{d['id']}: {status}",
                   phase="escalate" if status in ("escalated", "proposed") else "dispatch")
         return d

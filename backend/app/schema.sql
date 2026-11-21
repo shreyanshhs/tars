@@ -44,7 +44,8 @@ CREATE TABLE slots (
   subject_code TEXT NOT NULL REFERENCES subjects(code),
   faculty_id TEXT NOT NULL REFERENCES faculty(id),
   room_id TEXT NOT NULL REFERENCES rooms(id),
-  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled','replanned','cancelled'))
+  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled','replanned','cancelled')),
+  gcal_event_id TEXT               -- Google Calendar event TARS created for this slot (updated, never duplicated)
 );
 -- Hard guardrails at DB level too (cancelled slots excluded via partial index)
 CREATE UNIQUE INDEX no_section_clash ON slots(day, period, section)    WHERE status != 'cancelled';
@@ -75,6 +76,7 @@ CREATE TABLE decisions (
   affected_slot_ids TEXT,          -- JSON array
   status TEXT NOT NULL DEFAULT 'proposed',
   changes TEXT,                    -- JSON list of uncommitted changes awaiting HOD approval
+  calendar_link TEXT,              -- htmlLink of the Google Calendar event (v0.6)
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime'))
 );
 

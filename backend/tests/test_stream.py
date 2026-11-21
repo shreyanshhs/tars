@@ -147,7 +147,7 @@ def test_live_stream_end_to_end(server):
     assert set(steps[0]) == {"decision_id", "step", "phase", "text", "ts"} and steps[0]["phase"] == "signal"
     final = [d for e, d in hod if e == "decision_updated"][-1]
     assert final["status"] == "pending_ack" and set(final) == {
-        "id", "created_at", "trigger", "summary", "reasoning", "affected_slot_ids", "status"}
+        "id", "created_at", "trigger", "summary", "reasoning", "affected_slot_ids", "status", "calendar_link"}
 
     f08 = {e for e, _ in results["F08"][0]}
     assert f08 == {"ping", "timetable_updated", "nudge_created"}

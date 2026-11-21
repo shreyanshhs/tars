@@ -157,6 +157,12 @@ Login is `login id + password` (USN for students, staff ID like `F08`/`H01` for 
 
 > ⚠️ `.env` and `service-account*.json` are gitignored. Never commit keys.
 
+**Google Calendar setup:** in Google Cloud create a service account, download its JSON key to
+`backend/service-account.json` (gitignored; the path in `.env` is resolved from the repo root), and share the department
+calendar with the service account's email with **"Make changes to events"**. Put the calendar's ID (Calendar settings →
+Integrate calendar → Calendar ID) in `GOOGLE_CALENDAR_ID`. TARS then adds an event for every substitution/move and the demo
+reset removes them. If either value is missing, the backend logs "Google Calendar disabled" and carries on.
+
 **Telegram setup (2 min):** create the bot with @BotFather and put its token (looks like `123456789:AA…`, ~45 chars) in
 `TELEGRAM_BOT_TOKEN`, then start the backend (it polls; no webhook). On each phone, open the bot, send `/start`, reply
 with your login id (`F08`, `H01`, or a USN), then with the password (the bot deletes that message). Link the substitute (F08, and F07 for the DS Lab) and the HOD (H01) **after**

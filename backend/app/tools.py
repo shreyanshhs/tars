@@ -179,14 +179,14 @@ def log_decision(trigger: str, summary: str, reasoning: str, affected_slot_ids: 
 def get_decision(decision_id: int, con: Optional[sqlite3.Connection] = None) -> Optional[dict]:
     """Decision in contract shape, or None."""
     with use_db(con) as c:
-        r = c.execute("SELECT id, created_at, trigger, summary, reasoning, affected_slot_ids, status "
+        r = c.execute("SELECT id, created_at, trigger, summary, reasoning, affected_slot_ids, status, calendar_link "
                       "FROM decisions WHERE id = ?", (decision_id,)).fetchone()
     if r is None:
         return None
     return {**dict(r), "affected_slot_ids": json.loads(r["affected_slot_ids"] or "[]")}
 
 
-DECISION_FIELDS = {"summary", "reasoning", "affected_slot_ids", "status", "changes"}
+DECISION_FIELDS = {"summary", "reasoning", "affected_slot_ids", "status", "changes", "calendar_link"}
 
 
 def update_decision(decision_id: int, con: Optional[sqlite3.Connection] = None, **fields) -> dict:

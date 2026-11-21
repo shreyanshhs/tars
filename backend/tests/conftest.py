@@ -16,6 +16,8 @@ os.environ["TELEGRAM_BOT_TOKEN"] = ""
 os.environ["TARS_DEMO_PASSWORD"] = ""
 os.environ["TARS_PASSWORDLESS_LOGIN"] = ""
 os.environ["TARS_SESSION_SECRET"] = "test-secret-" + "x" * 32
+os.environ["GOOGLE_CALENDAR_ID"] = ""            # tests never touch the real calendar
+os.environ["GOOGLE_SERVICE_ACCOUNT_FILE"] = ""
 auth.PBKDF2_ITERATIONS = 1_000  # fast hashes in tests; real runs use the default (stored per hash)
 
 

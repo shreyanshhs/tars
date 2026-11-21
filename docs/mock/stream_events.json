@@ -97,10 +97,30 @@
     "event": "agent_step",
     "data": {
       "decision_id": 1,
+      "step": "act",
+      "phase": "dispatch",
+      "text": "Calendar: saving 1 event(s) in the background",
+      "ts": "2026-11-25T10:42:05"
+    }
+  },
+  {
+    "event": "agent_step",
+    "data": {
+      "decision_id": 1,
       "step": "done",
       "phase": "dispatch",
       "text": "Decision #1: pending_ack",
       "ts": "2026-11-25T10:42:06"
+    }
+  },
+  {
+    "event": "agent_step",
+    "data": {
+      "decision_id": 1,
+      "step": "act",
+      "phase": "dispatch",
+      "text": "Calendar event created: DS (CSE-A): Prof. Vikram Joshi substituting, DS (CSE-A) MON 09:55",
+      "ts": "2026-11-25T10:42:07"
     }
   }
 ]

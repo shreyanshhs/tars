@@ -61,6 +61,7 @@ class Decision(BaseModel):
     reasoning: Optional[str] = None
     affected_slot_ids: list[int]
     status: Literal["proposed", "committed", "pending_ack", "acknowledged", "escalated", "rejected"]
+    calendar_link: Optional[str]     # v0.6: Google Calendar htmlLink once the slot is in the calendar, else null
 
 
 class Nudge(BaseModel):
