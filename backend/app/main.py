@@ -44,7 +44,7 @@ async def lifespan(_: FastAPI):
         logging.getLogger("tars").exception("notifier failed to stop")
 
 
-app = FastAPI(title="TARS API", version="0.2.1", lifespan=lifespan)
+app = FastAPI(title="TARS API", version="0.6.0", lifespan=lifespan)
 # ---------- CORS ----------
 # Any port on localhost / 127.0.0.1 (Vite moves off 5173 when it's busy, e.g. to 5176).
 LOCAL_ORIGIN_REGEX = r"^http://(localhost|127\.0\.0\.1)(:\d{1,5})?$"
