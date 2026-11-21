@@ -237,7 +237,8 @@ option, and if it can't resolve a slot the decision ends `escalated`. Follow pro
 `proposed` (a cancellation awaits HOD approval; nothing applied yet) · `escalated` (unresolved slot or Gemini failure).
 
 **Google Calendar (v0.6):** after the agent commits a substitution or move, the backend creates (or updates) one event per
-slot in the department calendar: title like `DS (CSE-A): <faculty name> substituting`, the slot's weekday in the current week,
+slot in the department calendar: title like `DS (CSE-A): <faculty name> substituting`, on the **next occurrence** of the slot's weekday (today if that
+period hasn't ended yet, otherwise up to 7 days ahead; never in the past),
 period times in Asia/Kolkata, room as location, decision id + summary in the description. It runs in the background, so
 `calendar_link` is `null` at first and arrives a moment later via `decision_updated`. Show "Slot secured in calendar"
 (linking to `calendar_link`) once it's non-null. Progress shows in the TARS feed as `agent_step` (`step: "act"`,

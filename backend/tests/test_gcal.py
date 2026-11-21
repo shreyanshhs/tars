@@ -2,7 +2,8 @@
 import logging
 import threading
 import time
-from datetime import date
+from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 from conftest import H, slot_id
@@ -115,26 +116,50 @@ def steps(did):
 
 
 # ---------- event content ----------
-def test_slot_date_is_this_weeks_weekday():
-    wed = date(2026, 11, 25)
-    assert gcal.slot_date("MON", wed) == date(2026, 11, 23)
-    assert gcal.slot_date("FRI", wed) == date(2026, 11, 27)
-    assert gcal.slot_date("MON", date(2026, 11, 23)) == date(2026, 11, 23)     # Monday itself
-    assert gcal.slot_date("MON", date(2026, 11, 29)) == date(2026, 11, 23)     # Sunday → same week
+def ist(y, m, d, hh=12, mm=0):
+    return datetime(y, m, d, hh, mm, tzinfo=ZoneInfo("Asia/Kolkata"))
+
+
+def test_slot_date_is_next_occurrence():
+    wed = ist(2026, 11, 25)                                                    # Wednesday noon
+    assert gcal.slot_date("MON", "10:50", wed) == date(2026, 11, 30)           # Monday already passed → next week
+    assert gcal.slot_date("FRI", "10:50", wed) == date(2026, 11, 27)           # later this week
+    assert gcal.slot_date("THU", "09:55", wed) == date(2026, 11, 26)           # tomorrow
+    assert gcal.slot_date("TUE", "15:35", wed) == date(2026, 12, 1)            # yesterday → 6 days ahead
+    assert gcal.slot_date("MON", "10:50", ist(2026, 11, 29)) == date(2026, 11, 30)   # Sunday → tomorrow
+    assert gcal.slot_date("MON", "10:50", ist(2026, 11, 28)) == date(2026, 11, 30)   # Saturday → Monday
+
+
+def test_slot_date_today_until_the_period_ends():
+    # Monday 23 Nov, DS period P2 = 09:55–10:50
+    assert gcal.slot_date("MON", "10:50", ist(2026, 11, 23, 8, 0)) == date(2026, 11, 23)    # before class
+    assert gcal.slot_date("MON", "10:50", ist(2026, 11, 23, 10, 0)) == date(2026, 11, 23)   # during class
+    assert gcal.slot_date("MON", "10:50", ist(2026, 11, 23, 10, 49)) == date(2026, 11, 23)  # last minute
+    assert gcal.slot_date("MON", "10:50", ist(2026, 11, 23, 10, 50)) == date(2026, 11, 30)  # ended → next week
+    assert gcal.slot_date("MON", "10:50", ist(2026, 11, 23, 18, 0)) == date(2026, 11, 30)
+    assert all(gcal.slot_date(d, "12:00", ist(2026, 11, 25)) >= date(2026, 11, 25) for d in gcal.DAYS)  # never past
+
+
+def test_slot_date_uses_india_time_not_server_time():
+    # 23:30 UTC Sunday = 05:00 IST Monday → Monday's class is today in India
+    utc_sun_night = datetime(2026, 11, 22, 23, 30, tzinfo=timezone.utc)
+    assert gcal.slot_date("MON", "10:50", utc_sun_night.astimezone(ZoneInfo("Asia/Kolkata"))) == date(2026, 11, 23)
 
 
 def test_event_body(db):
     ds = tools.get_timetable(section="CSE-A", day="MON", con=db)[1]
     decision = {"id": 7, "status": "pending_ack", "summary": "DS covered", "reasoning": "71% < 75%. " * 400}
-    b = gcal.event_body({**ds, "faculty_name": "Sub Name"}, "substituted", decision, "Room 101", today=date(2026, 11, 25))
+    b = gcal.event_body({**ds, "faculty_name": "Sub Name"}, "substituted", decision, "Room 101", now=ist(2026, 11, 25))
     assert b["summary"] == "DS (CSE-A): Sub Name substituting"
-    assert b["start"] == {"dateTime": "2026-11-23T09:55:00", "timeZone": "Asia/Kolkata"}
-    assert b["end"] == {"dateTime": "2026-11-23T10:50:00", "timeZone": "Asia/Kolkata"}
+    assert b["start"] == {"dateTime": "2026-11-30T09:55:00", "timeZone": "Asia/Kolkata"}   # next Monday
+    assert b["end"] == {"dateTime": "2026-11-30T10:50:00", "timeZone": "Asia/Kolkata"}
+    early_mon = gcal.event_body(ds, "substituted", decision, None, now=ist(2026, 11, 23, 9, 0))
+    assert early_mon["start"]["dateTime"] == "2026-11-23T09:55:00"                         # same day, before class
     assert b["location"] == "Room 101 (R101)"
     assert b["description"].startswith("TARS decision #7 (pending_ack)\nDS covered")
     assert len(b["description"]) < 1700                                           # reasoning truncated
     assert b["extendedProperties"]["private"] == {"tars": "1", "tars_slot_id": str(ds["id"]), "tars_decision_id": "7"}
-    moved = gcal.event_body(ds, "moved", decision, None, today=date(2026, 11, 25))
+    moved = gcal.event_body(ds, "moved", decision, None, now=ist(2026, 11, 25))
     assert "rescheduled" in moved["summary"] and moved["location"] == "R101"
 
 
@@ -150,7 +175,8 @@ def test_demo_creates_events_and_sets_calendar_link(api, db, cal):
     ds = slot_id(db, "CSE-A", "MON", 2)
     ds_body = next(x[3] for x in inserts if x[3]["summary"].startswith("DS ("))
     assert ds_body["start"]["dateTime"].endswith("T09:55:00") and ds_body["start"]["timeZone"] == "Asia/Kolkata"
-    assert gcal.slot_date("MON").isoformat() in ds_body["start"]["dateTime"]
+    assert gcal.slot_date("MON", "10:50").isoformat() in ds_body["start"]["dateTime"]
+    assert ds_body["start"]["dateTime"][:10] >= datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()  # not in the past
     assert f"TARS decision #{did}" in ds_body["description"]
     ids = dict(db.execute("SELECT id, gcal_event_id FROM slots WHERE gcal_event_id IS NOT NULL").fetchall())
     assert set(ids) == {ds, slot_id(db, "CSE-A", "MON", 1)} and len(set(ids.values())) == 2

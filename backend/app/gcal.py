@@ -2,7 +2,8 @@
 
 - One event per slot: the event id is stored on slots.gcal_event_id, so a later change PATCHes the same
   event instead of creating a duplicate (if Google says it's gone, a new one is inserted).
-- Date = the slot's weekday in the current week (Asia/Kolkata), times from the period table.
+- Date = the next occurrence of the slot's weekday (Asia/Kolkata): today if it's that weekday and the
+  period hasn't ended yet, otherwise the next one (up to 7 days ahead). Times from the period table.
 - Every call runs on a small thread pool: the agent never waits, and any failure (no creds, no network,
   API error) is logged and reported as an agent_step, never raised.
 - Demo reset deletes exactly the events TARS created (the ids it stored), nothing else.
@@ -34,11 +35,15 @@ def key_file_path() -> Optional[Path]:
     return p if p.is_absolute() else ROOT / p
 
 
-def slot_date(day: str, today=None):
-    """The slot's weekday in the current week (Mon–Sun), in Asia/Kolkata."""
-    today = today or datetime.now(ZoneInfo(TZ)).date()
-    monday = today - timedelta(days=today.weekday())
-    return monday + timedelta(days=DAYS.index(day))
+def slot_date(day: str, end: Optional[str] = None, now: Optional[datetime] = None):
+    """Next occurrence of `day` in Asia/Kolkata, today or later (never in the past).
+    If today is that weekday, today is used while the period hasn't ended yet (`end` = "HH:MM");
+    once it has, the same weekday next week. Without `end`, today counts."""
+    now = now or datetime.now(ZoneInfo(TZ))
+    ahead = (DAYS.index(day) - now.weekday()) % 7
+    if ahead == 0 and end is not None and now.strftime("%H:%M") >= end:
+        ahead = 7  # today's period is over: next week
+    return now.date() + timedelta(days=ahead)
 
 
 def _status(e: Exception) -> Optional[int]:
@@ -49,8 +54,9 @@ def _status(e: Exception) -> Optional[int]:
         return None
 
 
-def event_body(slot: dict, kind: str, decision: dict, room_name: Optional[str], today=None) -> dict:
-    d = slot_date(slot["day"], today).isoformat()
+def event_body(slot: dict, kind: str, decision: dict, room_name: Optional[str],
+               now: Optional[datetime] = None) -> dict:
+    d = slot_date(slot["day"], slot["end"], now).isoformat()
     who = slot["faculty_name"]
     title = {"substituted": f"{slot['subject_code']} ({slot['section']}): {who} substituting",
              "moved": f"{slot['subject_code']} ({slot['section']}): rescheduled, {who}"}.get(
