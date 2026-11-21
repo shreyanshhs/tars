@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -22,6 +22,7 @@ from . import actions, agent, auth, bus, gcal, notify, tools
 from . import stream as sse
 from .db import DAYS, NUDGE_SELECT, fetch_slots, get_db, iso, now, nudge_dict, use_db
 from .models import (AttendanceItem, Day, Decision, ErrorResponse, Event, Faculty, FacultyUpdate,
+                     ImportRequest, ImportResult, ImportRow, ImportSummary, ImportValidationError,
                      IncidentAccepted, IncidentRequest, LoginRequest, LoginResponse, LogoutResponse, Meta, Nudge, ResetResult, Room, Slot,
                      SnoozeRequest, Stats, StreamTicket,
                      Today, User)
@@ -487,6 +488,415 @@ def rename_faculty(faculty_id: str, body: FacultyUpdate, _: User = Depends(requi
         bus.publish("timetable_updated", {"section": section, "slot_ids": ids},
                     sections=[section], user_ids=[faculty_id])
     return _faculty(con, faculty_id)[0]
+
+
+# ---------- timetable import (HOD only) ----------
+DAY_ALIASES = {
+    "MON": "MON", "MONDAY": "MON",
+    "TUE": "TUE", "TUESDAY": "TUE",
+    "WED": "WED", "WEDNESDAY": "WED",
+    "THU": "THU", "THURSDAY": "THU",
+    "FRI": "FRI", "FRIDAY": "FRI",
+}
+
+
+def _clean_str(val: Optional[str]) -> str:
+    return (val or "").strip()
+
+
+def _normalize_name(name: str) -> str:
+    """Normalize names for matching: strip common titles (Dr., Prof., etc.) and punctuation."""
+    import re
+    s = name.strip().lower()
+    s = re.sub(r"^(dr\.?|prof\.?|mr\.?|ms\.?|mrs\.?)\s+", "", s)
+    return re.sub(r"[^a-z0-9]", "", s)
+
+
+@api.get("/admin/timetable-template", response_class=PlainTextResponse,
+         responses={**HOD_ERRORS}, tags=["admin"])
+def get_timetable_template(_: User = Depends(require_hod)):
+    """Download a CSV template for importing college timetables."""
+    csv_content = (
+        "section,day,period,subject,faculty,room\n"
+        "CSE-A,MON,1,DS,F01,R101\n"
+        "CSE-A,MON,2,MATH,F03,R101\n"
+        "CSE-A,MON,3,DLD,F05,R101\n"
+        "CSE-A,MON,4,OOP,F02,R101\n"
+        "CSE-A,MON,5,COA,F06,R101\n"
+        "CSE-A,MON,6,DSL,F01,LAB1\n"
+    )
+    headers = {
+        "Content-Disposition": 'attachment; filename="tars_timetable_template.csv"',
+        "Content-Type": "text/csv; charset=utf-8",
+    }
+    return Response(content=csv_content, media_type="text/csv", headers=headers)
+
+
+@api.post("/admin/import-timetable", response_model=ImportResult,
+          responses={**HOD_ERRORS, 422: {"model": ErrorResponse}}, tags=["admin"])
+def import_timetable(body: ImportRequest, dry_run: bool = Query(True),
+                     _: User = Depends(require_hod),
+                     con: sqlite3.Connection = Depends(get_db)):
+    """Import and normalize a timetable from parsed CSV/Excel rows. HOD only.
+
+    Validates section, day, period, subject, faculty, room against DB records,
+    checks that faculty are qualified to teach subjects, detects duplicate slots
+    and clashes within the file and against non-replaced sections.
+    If dry_run=true: returns validation results and preview without saving.
+    If dry_run=false: atomically replaces slots for the replaced sections and emits SSE updates.
+    """
+    errors: list[ImportValidationError] = []
+
+    # 1. Load reference lookups from DB
+    # Sections
+    db_sections = {r[0] for r in con.execute("SELECT DISTINCT section FROM users WHERE section IS NOT NULL")}
+    db_sections |= {r[0] for r in con.execute("SELECT DISTINCT section FROM slots")}
+    section_map = {s.upper(): s for s in db_sections}
+    # Also support stripped dashes e.g. "CSEA" -> "CSE-A", "CSE A" -> "CSE-A"
+    for s in db_sections:
+        section_map[s.replace("-", "").replace(" ", "").upper()] = s
+        section_map[s.replace("-", " ").upper()] = s
+
+    # Subjects
+    subjects_rows = con.execute("SELECT code, name FROM subjects").fetchall()
+    subj_code_map = {}
+    subj_names = {}
+    for r in subjects_rows:
+        code, name = r["code"], r["name"]
+        subj_names[code] = name
+        subj_code_map[code.upper()] = code
+        subj_code_map[name.strip().lower()] = code
+        subj_code_map[_normalize_name(name)] = code
+
+    # Faculty
+    faculty_rows = con.execute(
+        "SELECT f.id, u.name, f.subjects FROM faculty f JOIN users u ON u.id = f.id"
+    ).fetchall()
+    faculty_id_map = {}
+    faculty_names = {}
+    faculty_subjects = {}
+    for r in faculty_rows:
+        fid, name, subs = r["id"], r["name"], r["subjects"]
+        faculty_names[fid] = name
+        faculty_id_map[fid.upper()] = fid
+        faculty_id_map[name.strip().lower()] = fid
+        faculty_id_map[_normalize_name(name)] = fid
+        faculty_subjects[fid] = {s.strip().upper() for s in subs.split(",") if s.strip()}
+
+    # Rooms
+    room_rows = con.execute("SELECT id, name FROM rooms").fetchall()
+    room_id_map = {}
+    room_names = {}
+    for r in room_rows:
+        rid, name = r["id"], r["name"]
+        room_names[rid] = name
+        room_id_map[rid.upper()] = rid
+        room_id_map[name.strip().lower()] = rid
+        room_id_map[_normalize_name(name)] = rid
+
+    # Periods
+    period_rows = con.execute("SELECT period, start, end FROM periods ORDER BY period").fetchall()
+    period_map = {r["period"]: (r["start"], r["end"]) for r in period_rows}
+
+    # 2. Determine and validate replace_sections
+    raw_replace_sections = body.replace_sections
+    target_replace_sections: set[str] = set()
+
+    if raw_replace_sections is not None:
+        if len(raw_replace_sections) == 0:
+            errors.append(ImportValidationError(
+                field="replace_sections", type="missing",
+                message="replace_sections cannot be empty when provided"
+            ))
+        for sec in raw_replace_sections:
+            norm_sec = section_map.get(sec.strip().upper())
+            if not norm_sec:
+                errors.append(ImportValidationError(
+                    field="replace_sections", value=sec, type="unknown",
+                    message=f"Unknown section '{sec}' in replace_sections"
+                ))
+            else:
+                target_replace_sections.add(norm_sec)
+
+    # 3. Per-row validation and normalization
+    normalized_rows: list[dict] = []
+    seen_section_slots: dict[tuple, int] = {}
+    seen_faculty_slots: dict[tuple, int] = {}
+    seen_room_slots: dict[tuple, int] = {}
+
+    for i, row in enumerate(body.rows, 1):
+        row_has_error = False
+
+        # --- Section ---
+        raw_sec = _clean_str(row.section)
+        if not raw_sec:
+            errors.append(ImportValidationError(row=i, field="section", type="missing", message="Missing section"))
+            norm_sec = None
+            row_has_error = True
+        else:
+            norm_sec = section_map.get(raw_sec.upper()) or section_map.get(raw_sec.replace("-", "").replace(" ", "").upper())
+            if not norm_sec:
+                errors.append(ImportValidationError(row=i, field="section", value=raw_sec, type="unknown",
+                                                    message=f"Unknown section '{raw_sec}'"))
+                row_has_error = True
+
+        # --- Day ---
+        raw_day = _clean_str(row.day)
+        if not raw_day:
+            errors.append(ImportValidationError(row=i, field="day", type="missing", message="Missing day"))
+            norm_day = None
+            row_has_error = True
+        else:
+            norm_day = DAY_ALIASES.get(raw_day.upper())
+            if not norm_day:
+                errors.append(ImportValidationError(row=i, field="day", value=raw_day, type="invalid",
+                                                    message=f"Invalid day '{raw_day}' (must be MON..FRI)"))
+                row_has_error = True
+
+        # --- Period ---
+        raw_period = row.period
+        if raw_period is None:
+            errors.append(ImportValidationError(row=i, field="period", type="missing", message="Missing period"))
+            norm_period = None
+            row_has_error = True
+        elif raw_period not in period_map:
+            errors.append(ImportValidationError(row=i, field="period", value=str(raw_period), type="invalid",
+                                                message=f"Invalid period {raw_period} (must be 1..6)"))
+            norm_period = None
+            row_has_error = True
+        else:
+            norm_period = raw_period
+
+        # --- Subject ---
+        raw_subj = _clean_str(row.subject_code or row.subject)
+        if not raw_subj:
+            errors.append(ImportValidationError(row=i, field="subject", type="missing", message="Missing subject"))
+            norm_subj = None
+            row_has_error = True
+        else:
+            norm_subj = (subj_code_map.get(raw_subj.upper()) or
+                         subj_code_map.get(raw_subj.lower()) or
+                         subj_code_map.get(_normalize_name(raw_subj)))
+            if not norm_subj:
+                errors.append(ImportValidationError(row=i, field="subject", value=raw_subj, type="unknown",
+                                                    message=f"Unknown subject '{raw_subj}'"))
+                row_has_error = True
+
+        # --- Faculty ---
+        raw_fac = _clean_str(row.faculty_id or row.faculty)
+        if not raw_fac:
+            errors.append(ImportValidationError(row=i, field="faculty", type="missing", message="Missing faculty"))
+            norm_fac = None
+            row_has_error = True
+        else:
+            norm_fac = (faculty_id_map.get(raw_fac.upper()) or
+                        faculty_id_map.get(raw_fac.lower()) or
+                        faculty_id_map.get(_normalize_name(raw_fac)))
+            if not norm_fac:
+                errors.append(ImportValidationError(row=i, field="faculty", value=raw_fac, type="unknown",
+                                                    message=f"Unknown faculty '{raw_fac}'"))
+                row_has_error = True
+
+        # --- Room ---
+        raw_room = _clean_str(row.room_id or row.room)
+        if not raw_room:
+            errors.append(ImportValidationError(row=i, field="room", type="missing", message="Missing room"))
+            norm_room = None
+            row_has_error = True
+        else:
+            norm_room = (room_id_map.get(raw_room.upper()) or
+                         room_id_map.get(raw_room.lower()) or
+                         room_id_map.get(_normalize_name(raw_room)))
+            if not norm_room:
+                errors.append(ImportValidationError(row=i, field="room", value=raw_room, type="unknown",
+                                                    message=f"Unknown room '{raw_room}'"))
+                row_has_error = True
+
+        # Capability check: can this faculty teach this subject?
+        if norm_fac and norm_subj:
+            allowed_subs = faculty_subjects.get(norm_fac, set())
+            if norm_subj not in allowed_subs:
+                fac_name = faculty_names.get(norm_fac, norm_fac)
+                subj_name = subj_names.get(norm_subj, norm_subj)
+                errors.append(ImportValidationError(
+                    row=i, field="faculty", value=raw_fac, type="mismatch",
+                    message=f"Faculty '{fac_name}' ({norm_fac}) is not qualified to teach '{subj_name}' ({norm_subj})"
+                ))
+                row_has_error = True
+
+        if not row_has_error and norm_sec and norm_day and norm_period and norm_subj and norm_fac and norm_room:
+            # Internal Duplicate/Clash Checks within the import
+            sec_slot_key = (norm_sec, norm_day, norm_period)
+            if sec_slot_key in seen_section_slots:
+                prev_row = seen_section_slots[sec_slot_key]
+                errors.append(ImportValidationError(
+                    row=i, type="duplicate",
+                    message=f"Duplicate slot: section {norm_sec} {norm_day} P{norm_period} already assigned in row {prev_row}"
+                ))
+            else:
+                seen_section_slots[sec_slot_key] = i
+
+            fac_slot_key = (norm_fac, norm_day, norm_period)
+            if fac_slot_key in seen_faculty_slots:
+                prev_row = seen_faculty_slots[fac_slot_key]
+                fac_name = faculty_names.get(norm_fac, norm_fac)
+                errors.append(ImportValidationError(
+                    row=i, type="clash", field="faculty", value=norm_fac,
+                    message=f"Faculty clash: {fac_name} ({norm_fac}) double-booked on {norm_day} P{norm_period} (also in row {prev_row})"
+                ))
+            else:
+                seen_faculty_slots[fac_slot_key] = i
+
+            room_slot_key = (norm_room, norm_day, norm_period)
+            if room_slot_key in seen_room_slots:
+                prev_row = seen_room_slots[room_slot_key]
+                rm_name = room_names.get(norm_room, norm_room)
+                errors.append(ImportValidationError(
+                    row=i, type="clash", field="room", value=norm_room,
+                    message=f"Room clash: {rm_name} ({norm_room}) double-booked on {norm_day} P{norm_period} (also in row {prev_row})"
+                ))
+            else:
+                seen_room_slots[room_slot_key] = i
+
+            normalized_rows.append({
+                "row_index": i,
+                "section": norm_sec,
+                "day": norm_day,
+                "period": norm_period,
+                "subject_code": norm_subj,
+                "subject_name": subj_names.get(norm_subj, norm_subj),
+                "faculty_id": norm_fac,
+                "faculty_name": faculty_names.get(norm_fac, norm_fac),
+                "room_id": norm_room,
+                "start": period_map[norm_period][0],
+                "end": period_map[norm_period][1],
+            })
+
+    # Auto-infer replace_sections if not explicitly provided
+    detected_sections = sorted({r["section"] for r in normalized_rows})
+    if raw_replace_sections is None:
+        target_replace_sections = set(detected_sections)
+    else:
+        # If replace_sections was provided, ensure all rows belong to replace_sections
+        for r in normalized_rows:
+            if r["section"] not in target_replace_sections:
+                errors.append(ImportValidationError(
+                    row=r["row_index"], field="section", value=r["section"], type="mismatch",
+                    message=f"Section '{r['section']}' is not included in replace_sections {sorted(target_replace_sections)}"
+                ))
+
+    # 4. Cross-section clashes (against sections NOT being replaced)
+    if target_replace_sections:
+        ph = ",".join("?" for _ in target_replace_sections)
+        external_slots = con.execute(
+            f"SELECT s.id, s.day, s.period, s.section, s.faculty_id, u.name as faculty_name, "
+            f"s.room_id, r.name as room_name "
+            f"FROM slots s "
+            f"JOIN users u ON u.id = s.faculty_id "
+            f"JOIN rooms r ON r.id = s.room_id "
+            f"WHERE s.status != 'cancelled' AND s.section NOT IN ({ph})",
+            tuple(target_replace_sections)
+        ).fetchall()
+
+        # Build lookup tables for non-replaced active slots
+        ext_faculty_slots: dict[tuple, sqlite3.Row] = {}
+        ext_room_slots: dict[tuple, sqlite3.Row] = {}
+        for es in external_slots:
+            ext_faculty_slots[(es["faculty_id"], es["day"], es["period"])] = es
+            ext_room_slots[(es["room_id"], es["day"], es["period"])] = es
+
+        for r in normalized_rows:
+            fac_key = (r["faculty_id"], r["day"], r["period"])
+            if fac_key in ext_faculty_slots:
+                es = ext_faculty_slots[fac_key]
+                errors.append(ImportValidationError(
+                    row=r["row_index"], field="faculty", value=r["faculty_id"], type="clash",
+                    message=f"Faculty clash: {r['faculty_name']} ({r['faculty_id']}) already teaching "
+                            f"section {es['section']} on {r['day']} P{r['period']}"
+                ))
+
+            rm_key = (r["room_id"], r["day"], r["period"])
+            if rm_key in ext_room_slots:
+                es = ext_room_slots[rm_key]
+                errors.append(ImportValidationError(
+                    row=r["row_index"], field="room", value=r["room_id"], type="clash",
+                    message=f"Room clash: {r['room_id']} already occupied by "
+                            f"section {es['section']} on {r['day']} P{r['period']}"
+                ))
+
+    summary = ImportSummary(
+        total_rows=len(body.rows),
+        sections=sorted(target_replace_sections) if target_replace_sections else detected_sections,
+        errors=len(errors)
+    )
+    valid = len(errors) == 0
+
+    # Build preview if valid
+    preview: list[Slot] = []
+    if valid:
+        day_order = {d: i for i, d in enumerate(DAYS)}
+        sorted_rows = sorted(normalized_rows, key=lambda x: (day_order.get(x["day"], 99), x["period"], x["section"]))
+        for idx, r in enumerate(sorted_rows, 1):
+            preview.append(Slot(
+                id=idx,
+                day=r["day"],
+                period=r["period"],
+                start=r["start"],
+                end=r["end"],
+                section=r["section"],
+                subject_code=r["subject_code"],
+                subject_name=r["subject_name"],
+                faculty_id=r["faculty_id"],
+                faculty_name=r["faculty_name"],
+                room_id=r["room_id"],
+                status="scheduled"
+            ))
+
+    if dry_run or not valid:
+        if not valid and not dry_run:
+            raise HTTPException(422, {
+                "error": "validation",
+                "detail": f"Import validation failed with {len(errors)} error(s)",
+                "errors": [e.model_dump() for e in errors],
+                "summary": summary.model_dump()
+            })
+        return ImportResult(
+            valid=valid,
+            errors=errors,
+            summary=summary,
+            preview=preview if valid else None
+        )
+
+    # 5. Atomic Replace in DB (dry_run=false and valid=true)
+    target_sections_list = sorted(target_replace_sections)
+    with con:
+        for sec in target_sections_list:
+            con.execute("DELETE FROM slots WHERE section = ?", (sec,))
+        con.executemany(
+            "INSERT INTO slots (day, period, section, subject_code, faculty_id, room_id, status) "
+            "VALUES (?, ?, ?, ?, ?, ?, 'scheduled')",
+            [(r["day"], r["period"], r["section"], r["subject_code"], r["faculty_id"], r["room_id"])
+             for r in normalized_rows]
+        )
+
+    # 6. Publish SSE updates for all connected users
+    for sec in target_sections_list:
+        sec_slot_ids = [r[0] for r in con.execute(
+            "SELECT id FROM slots WHERE section = ? ORDER BY id", (sec,)
+        ).fetchall()]
+        sec_fac_ids = [r[0] for r in con.execute(
+            "SELECT DISTINCT faculty_id FROM slots WHERE section = ?", (sec,)
+        ).fetchall()]
+        bus.publish("timetable_updated", {"section": sec, "slot_ids": sec_slot_ids},
+                    sections=[sec], user_ids=sec_fac_ids, hod=True)
+
+    return ImportResult(
+        valid=True,
+        errors=[],
+        summary=summary,
+        imported=len(normalized_rows),
+        preview=preview
+    )
 
 
 # ---------- demo support (v0.4) ----------

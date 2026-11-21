@@ -112,6 +112,8 @@ Ids (`S001…`, `F01…F08`, `H01`) are stable.
 | GET | `/stream?ticket=…` | ticket | **SSE** live updates (see below) | all (live refresh) |
 | GET | `/meta` | all | Form options + `demo_mode` (v0.4) | Admin incident form, reset button |
 | POST | `/admin/reset-demo` | hod | Restore the seeded demo (v0.4; only when demo mode is on) | Admin |
+| GET | `/admin/timetable-template` | hod | Download timetable import CSV template | Admin Import |
+| POST | `/admin/import-timetable` | hod | Validate (`dry_run=true`) or atomically import (`dry_run=false`) a timetable | Admin Import |
 
 ### POST `/auth/login`  (v0.5)
 ```jsonc
@@ -223,6 +225,77 @@ nudges, RSVPs and Telegram confirmations; cancels pending escalation timers. **K
 // errors: 404 when demo mode is off (for everyone, checked first) · 401 · 403 not hod
 ```
 Then every connected client gets SSE `demo_reset`. Show the button only if `GET /meta` says `demo_mode: true`.
+
+### GET `/admin/timetable-template`  (hod only)
+No body. Returns `text/csv` attachment `tars_timetable_template.csv` with standard columns: `section,day,period,subject,faculty,room`. Errors: 401 · 403 not hod.
+
+### POST `/admin/import-timetable`  (hod only)
+Import a college timetable from parsed CSV or Excel rows.
+Query param: `dry_run=true` (default: validate & preview without saving) or `dry_run=false` (validate, atomically replace slots for replaced sections, and emit `timetable_updated`).
+
+```jsonc
+// request body
+{
+  "rows": [
+    {
+      "section": "CSE-A",            // matched case-insensitively to existing sections
+      "day": "MON",                  // MON..FRI (also "Monday", "Mon")
+      "period": 1,                   // 1..6
+      "subject": "DS",               // subject code (e.g. "DS") or name (e.g. "Data Structures")
+      "faculty": "F01",              // faculty id (e.g. "F01") or name (e.g. "Dr. Ananya Rao")
+      "room": "R101"                 // room id (e.g. "R101") or name (e.g. "Room 101")
+    }
+  ],
+  "replace_sections": ["CSE-A"]      // optional: which sections to replace (defaults to all sections in rows)
+}
+
+// response 200 (dry_run=true, valid)
+{
+  "valid": true,
+  "errors": [],
+  "summary": { "total_rows": 72, "sections": ["CSE-A", "CSE-B", "CSE-C"], "errors": 0 },
+  "imported": null,
+  "preview": [ /* array of canonical Slot objects */ ]
+}
+
+// response 200 (dry_run=true, validation failed)
+{
+  "valid": false,
+  "errors": [
+    {
+      "row": 3,
+      "field": "faculty",
+      "value": "Dr. Unknown",
+      "type": "unknown",             // missing | unknown | invalid | mismatch | duplicate | clash
+      "message": "Unknown faculty 'Dr. Unknown'"
+    }
+  ],
+  "summary": { "total_rows": 72, "sections": ["CSE-A"], "errors": 1 },
+  "imported": null,
+  "preview": null
+}
+
+// response 200 (dry_run=false, successful import)
+{
+  "valid": true,
+  "errors": [],
+  "summary": { "total_rows": 72, "sections": ["CSE-A"], "errors": 0 },
+  "imported": 72,
+  "preview": [ /* array of canonical Slot objects */ ]
+}
+
+// response 422 (dry_run=false, validation failed)
+// detail string contains error count; errors array contains granular row errors.
+```
+
+**Validation & Safety Guarantees:**
+1. Fields matched against canonical database records (`subjects`, `faculty`, `rooms`, `users`, `periods`).
+2. Faculty capability checked: faculty member must have the subject code listed in `faculty.subjects`.
+3. Intra-file clash detection: checks for duplicate section slots, faculty double-booking, and room double-booking within the imported rows.
+4. Cross-section clash detection: checks against active slots of sections *not* being replaced.
+5. Atomic replacement: on `dry_run=false`, all previous slots for `replace_sections` are deleted and new slots inserted in a single database transaction. If validation fails or any error occurs, zero changes are persisted.
+6. SSE emission: emits `timetable_updated` for each replaced section with the new slot IDs to connected students, faculty, and HOD.
+
 
 ### POST `/incidents`
 ```jsonc

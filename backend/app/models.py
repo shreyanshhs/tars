@@ -173,3 +173,43 @@ class ResetResult(BaseModel):
 class ErrorResponse(BaseModel):
     error: str
     detail: str
+
+
+class ImportRow(BaseModel):
+    section: str
+    day: str
+    period: int
+    subject: Optional[str] = None
+    subject_code: Optional[str] = None
+    faculty: Optional[str] = None
+    faculty_id: Optional[str] = None
+    room: Optional[str] = None
+    room_id: Optional[str] = None
+
+
+class ImportRequest(BaseModel):
+    rows: list[ImportRow] = Field(min_length=1)
+    replace_sections: Optional[list[str]] = None
+
+
+class ImportValidationError(BaseModel):
+    row: Optional[int] = None
+    field: Optional[str] = None
+    value: Optional[str] = None
+    type: str
+    message: str
+
+
+class ImportSummary(BaseModel):
+    total_rows: int
+    sections: list[str]
+    errors: int
+
+
+class ImportResult(BaseModel):
+    valid: bool
+    errors: list[ImportValidationError] = []
+    summary: ImportSummary
+    imported: Optional[int] = None
+    preview: Optional[list[Slot]] = None
+
